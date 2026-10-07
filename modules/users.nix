@@ -21,6 +21,17 @@ let
 
   rcfg = config.registry;
 
+  adminSecretId = user: "user-ssh-${user}";
+
+  # agenix-rekey's `ssh-ed25519` generator writes the public key next to the
+  # generated secret as `<secret>.pub`.
+  adminPublicKey =
+    user:
+    let
+      file = rcfg.secretsDir + "/generated/${adminSecretId user}.pub";
+    in
+    if builtins.pathExists file then lib.fileContents file else null;
+
   passwordModeType = types.enum [
     "generated"
     "locked"
@@ -73,8 +84,13 @@ let
           type = types.bool;
           default = false;
           description = ''
-            Administrator: member of `wheel` and authorized with
-            `registry.adminKeys` on top of `sshKeys`.
+            Administrator: member of `wheel`. Instead of accepting
+            `registry.adminKeys`, an SSH key pair is generated for the user
+            with agenix-rekey (`agenix generate`) and installed as
+            `~/.ssh/id_ed25519` (plus `.pub`) on every host the user lives
+            on that can decrypt secrets. The public key
+            `secrets/generated/user-ssh-<user>.pub` is authorized on top of
+            `sshKeys`. Commit the `.pub` file.
           '';
         };
 
@@ -119,7 +135,7 @@ let
   accountsFor = host: {
     inherit (rcfg.userPolicy) mutableUsers sudoNeedsPassword perHostPasswords;
     root = rcfg.rootUser;
-    adminKeys = rcfg.adminKeys;
+    adminPublicKeys = lib.mapAttrs (name: _: adminPublicKey name) rcfg.users;
     roleGroups = lib.unique (
       lib.concatMap (role: rcfg.userPolicy.roleGroups.${role} or [ ]) host.roles
     );
@@ -263,6 +279,31 @@ in
             };
           };
 
+        adminUsers = filterAttrs (_: u: u.admin) users;
+
+        homeOf = user: config.users.users.${user}.home;
+
+        # Pregenerated identity, installed as ~/.ssh/id_ed25519.
+        adminKeySecret = user: {
+          ${adminSecretId user} = {
+            generator.script = "ssh-ed25519";
+            path = "${homeOf user}/.ssh/id_ed25519";
+            owner = user;
+            mode = "0400";
+          };
+        };
+
+        adminKeyTmpfiles =
+          user:
+          let
+            group = config.users.users.${user}.group;
+            pub = userAccounts.adminPublicKeys.${user};
+          in
+          [ "d ${homeOf user}/.ssh 0700 ${user} ${group} -" ]
+          ++ lib.optional (
+            pub != null
+          ) "f+ ${homeOf user}/.ssh/id_ed25519.pub 0644 ${user} ${group} - ${pub}";
+
         hashFile = user: config.age.secrets.${secretId "hash" user}.path;
         passwordFor =
           user: lib.optionalAttrs (generated ? ${user}) { hashedPasswordFile = hashFile user; };
@@ -281,7 +322,11 @@ in
                 inherit (u) description uid;
                 shell = shellOf u.shell;
                 extraGroups = lib.optional u.admin "wheel" ++ u.extraGroups ++ userAccounts.roleGroups;
-                openssh.authorizedKeys.keys = u.sshKeys ++ lib.optionals u.admin userAccounts.adminKeys;
+                openssh.authorizedKeys.keys =
+                  u.sshKeys
+                  ++ lib.optional (
+                    u.admin && userAccounts.adminPublicKeys.${name} != null
+                  ) userAccounts.adminPublicKeys.${name};
               }
               // (passwordFor name)
             ) users)
@@ -304,9 +349,18 @@ in
             enable = mkDefault true;
           });
 
-          age.secrets = mkMerge (map passwordSecrets (attrNames generated));
+          age.secrets = mkMerge (
+            map passwordSecrets (attrNames generated)
+            ++ lib.optionals canDecrypt (map adminKeySecret (attrNames adminUsers))
+          );
+
+          systemd.tmpfiles.rules = lib.concatMap adminKeyTmpfiles (attrNames adminUsers);
 
           assertions = [
+            {
+              assertion = lib.all (n: userAccounts.adminPublicKeys.${n} != null) (attrNames adminUsers);
+              message = "admin users without a generated key: run `agenix generate` and commit secrets/generated/user-ssh-*.pub";
+            }
             {
               assertion = !(elem "root" (attrNames users));
               message = "registry.users must not define 'root', use registry.rootUser";
