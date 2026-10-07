@@ -31,6 +31,8 @@ let
   );
 in
 {
+  flake.hostKeysData = hostsData;
+
   perSystem =
     { config, pkgs, ... }:
     let
@@ -83,6 +85,7 @@ in
       host-keys-script = pkgs.writeShellApplication {
         name = "host-keys";
         runtimeInputs = [
+          pkgs.nix
           pkgs.rage
           pkgs.age-plugin-fido2-hmac
           pkgs.openssh
@@ -93,7 +96,10 @@ in
           config.agenix-rekey.package
         ];
         text = ''
-          hosts_file=${hostsFile}
+          # Baked in at build time: only good enough for tab completion.
+          # Commands read the checked-out flake instead (see live_hosts), so
+          # a host created since the last build is known at once.
+          hosts_json=$(<${hostsFile})
           master_rel=${lib.escapeShellArg masterDir}
 
           # Where NixOS (see secrets.nix) expects the host key on the target.
@@ -146,8 +152,14 @@ in
 
           root=''${FLAKE_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
           master_dir=$root$master_rel
+          export FLAKE_ROOT=$root
 
-          field() { jq -r --arg h "$1" --arg k "$2" '.[$h][$k] // empty' "$hosts_file"; }
+          live_hosts() {
+            hosts_json=$(nix eval --json "$root#hostKeysData") ||
+              die "cannot evaluate $root#hostKeysData"
+          }
+
+          field() { jq -r --arg h "$1" --arg k "$2" '.[$h][$k] // empty' <<<"$hosts_json"; }
           age_path() { echo "$root$(field "$1" age)"; }
           pub_path() { echo "$root$(field "$1" pub)"; }
 
@@ -170,8 +182,8 @@ in
 
           need_host() {
             [ -n "''${1:-}" ] || die "missing <host> argument"
-            jq -e --arg h "$1" 'has($h)' "$hosts_file" >/dev/null ||
-              die "unknown host '$1' (known: $(jq -r 'keys | join(", ")' "$hosts_file"))"
+            jq -e --arg h "$1" 'has($h)' <<<"$hosts_json" >/dev/null ||
+              die "unknown host '$1' (known: $(jq -r 'keys | join(", ")' <<<"$hosts_json"))"
           }
 
           recipient_args=()
@@ -246,7 +258,7 @@ in
               shift
             done
             if [ $all = 1 ]; then
-              mapfile -t hosts < <(jq -r 'keys[]' "$hosts_file")
+              mapfile -t hosts < <(jq -r 'keys[]' <<<"$hosts_json")
               for h in "''${hosts[@]}"; do
                 case $(key_state "$h") in
                   ok) info "$h: already has a key, skipping" ;;
@@ -323,7 +335,7 @@ in
               info "$h: installing key locally"
               { echo "$pub"; printf '%s\n' "$key"; } | $sudo sh -c "$script"
             else
-              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' "$hosts_file")
+              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$hosts_json")
               if [ "''${dest%@*}" != root ]; then sudo="sudo -n"; fi
               info "$h: installing key on $dest"
               # shellcheck disable=SC2029
@@ -349,7 +361,7 @@ in
             if [ "$mode" = local ]; then
               got=$(awk '{ print $2 }' "$key_path.pub")
             else
-              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' "$hosts_file")
+              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$hosts_json")
               # shellcheck disable=SC2029
               got=$(ssh "''${opts[@]}" "$dest" cat "$key_path.pub" | awk '{ print $2 }')
             fi
@@ -451,12 +463,16 @@ in
               esac
               target=$(field "$h" target)
               printf '%-24s %-52s %s\n' "$h" "$state" "''${target:-local only}"
-            done < <(jq -r 'keys[]' "$hosts_file")
+            done < <(jq -r 'keys[]' <<<"$hosts_json")
           }
 
           [ $# -gt 0 ] || { usage; exit 1; }
           cmd=$1
           shift
+          case $cmd in
+            completion | _hosts | help | -h | --help) ;;
+            *) live_hosts ;;
+          esac
           case $cmd in
             list) cmd_list ;;
             generate) cmd_generate "$@" ;;
@@ -471,7 +487,7 @@ in
               [ "''${1:-}" = bash ] || die "completion: only 'bash' is supported"
               cat ${completion}
               ;;
-            _hosts) jq -r 'keys[]' "$hosts_file" ;;
+            _hosts) jq -r 'keys[]' <<<"$hosts_json" ;;
             help | -h | --help) usage ;;
             *) usage; die "unknown command '$cmd'" ;;
           esac
