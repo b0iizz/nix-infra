@@ -16,12 +16,13 @@ let
   resolveRoles =
     host:
     let
-      available = attrNames (config.flake.modules.nixos or { });
+      modules = config.flake.modules.nixos or { };
+      available = attrNames modules;
       missing = subtractLists available host.roles;
     in
     lib.throwIf (missing != [ ])
       "host '${host.hostName}': unknown role(s) ${toString missing}; available are ${toString available}"
-      (attrValues (getAttrs host.roles available));
+      (attrValues (getAttrs host.roles modules));
 
   contextModule = host: {
     options.host-context = lib.mkOption {
