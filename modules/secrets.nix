@@ -1,0 +1,92 @@
+{
+  lib,
+  config,
+  inputs,
+  self,
+  ...
+}:
+let
+  identified = lib.filterAttrs (_: host: host.host-key.publicKeyFile != null) config.registry.hosts;
+in
+{
+  imports = [ inputs.agenix-rekey.flakeModule ];
+
+  flake-file.inputs = {
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "";
+      inputs.darwin.follows = "";
+    };
+    agenix-rekey = {
+      url = "github:oddlama/agenix-rekey";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  perSystem =
+    { config, ... }:
+    {
+      agenix-rekey = {
+        nixosConfigurations = lib.mapAttrs (name: _: self.nixosConfigurations.${name}) identified;
+        collectHomeManagerConfigurations = false;
+      };
+
+      make-shells.default = { pkgs, ... }: {
+        packages = [
+          pkgs.age-plugin-fido2-hmac
+          pkgs.rage
+          config.agenix-rekey.package
+        ];
+      };
+    };
+
+  flake.modules.nixos.base.imports = [ self.modules.nixos.secrets ];
+  flake.modules.nixos.secrets =
+    {
+      lib,
+      config,
+      pkgs,
+      ...
+    }:
+    {
+      imports = [ inputs.agenix-rekey.nixosModules.default ];
+
+      config = lib.mkIf (config.host-context.host-key.publicKey != null) {
+        age.rekey = {
+          masterIdentities = [
+            {
+              identity = config.registry.secretsDir + "/master/fido2.age-identity";
+              pubkey = lib.fileContents (config.registry.secretsDir + "/master/fido2.pub");
+            }
+          ];
+
+          agePlugins = [ pkgs.age-plugin-fido2-hmac ];
+
+          hostPubKey = config.host-context.host-key.publicKey;
+
+          storageMode = "local";
+          localStorageDir = config.registry.secretsDir + "/rekeyed/${config.host-context.hostName}";
+          generatedSecretsDir = config.registry.secretsDir + "/generated";
+        };
+
+        services.openssh = {
+          enable = lib.mkDefault true;
+          settings = {
+            PasswordAuthentication = lib.mkDefault false;
+            KbdInteractiveAuthentication = lib.mkDefault false;
+            PermitRootLogin = lib.mkDefault "prohibit-password";
+          };
+          hostKeys = lib.mkForce [
+            {
+              path = "/etc/ssh/ssh_host_ed25519_key";
+              type = "ed25519";
+            }
+          ];
+        };
+
+        age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+      };
+    };
+
+}
