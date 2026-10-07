@@ -6,7 +6,7 @@
   ...
 }:
 let
-  identified = lib.filterAttrs (_: host: host.host-key.publicKeyFile != null) config.registry.hosts;
+  identified = lib.filterAttrs (_: host: host.hostkey.publicKeyFile != null) config.registry.hosts;
 in
 {
   imports = [ inputs.agenix-rekey.flakeModule ];
@@ -50,9 +50,12 @@ in
       ...
     }:
     {
-      imports = [ inputs.agenix-rekey.nixosModules.default ];
+      imports = [
+        inputs.agenix-rekey.nixosModules.default
+        inputs.agenix.nixosModules.default
+      ];
 
-      config = lib.mkIf (config.host-context.host-key.publicKey != null) {
+      config = lib.mkIf (config.host-context.hostkey.publicKey != null) {
         age.rekey = {
           masterIdentities = [
             {
@@ -63,7 +66,7 @@ in
 
           agePlugins = [ pkgs.age-plugin-fido2-hmac ];
 
-          hostPubKey = config.host-context.host-key.publicKey;
+          hostPubkey = config.host-context.hostkey.publicKey;
 
           storageMode = "local";
           localStorageDir = config.registry.secretsDir + "/rekeyed/${config.host-context.hostName}";
