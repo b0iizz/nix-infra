@@ -10,7 +10,7 @@
   ];
 
   flake-file = {
-    description = "My NixOS configurations";
+    description = "Declarative NixOS fleet: hosts, disk layouts, secrets, provisioning and deployment";
 
     inputs = {
       flake-parts.url = "github:hercules-ci/flake-parts";
@@ -21,7 +21,10 @@
     };
 
     outputs = ''
-      inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
+      inputs: inputs.flake-parts.lib.mkFlake {
+        inherit inputs;
+        specialArgs.withInputs = import ./with-inputs.nix inputs;
+      } (
         inputs.import-tree [ ./modules ]
       )
     '';
