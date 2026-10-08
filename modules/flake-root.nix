@@ -39,6 +39,7 @@
     defaultSystem = "x86_64-linux";
     adminKeys = [
       # "ssh-ed25519 AAAA... you@workstation"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIYJZQipCKx0rDKEYI6r+0MpUZKSVHZRafrOAF6dVP8J prometheus:joni-ssh-ed25519"
     ];
   };
 
