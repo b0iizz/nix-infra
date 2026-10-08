@@ -378,8 +378,8 @@ withInputs
       # /persist, /nix, /var/log, /etc/ssh (the host key, which secrets need)
       # or /var/lib/nixos (uid maps) is gone after a reboot (but kept in
       # /old_roots for a while, see `keepOldRootsDays`). What to keep is declared
-      # elsewhere (e.g. the impermanence module); this layout only provides the
-      # places to keep it.
+      # by the impermanence module (modules/impermanence.nix, imported here); this
+      # layout only provides the places to keep it.
       flake.modules.nixos.disko-root-impermanence =
         {
           config,
@@ -399,7 +399,10 @@ withInputs
           keep = toString cfg.keepOldRootsDays;
         in
         {
-          imports = [ nixosModules.disko-layouts ];
+          imports = [
+            nixosModules.disko-layouts
+            nixosModules.impermanence
+          ];
 
           options.disko-layouts.impermanence = {
             persistDir = mkOption {

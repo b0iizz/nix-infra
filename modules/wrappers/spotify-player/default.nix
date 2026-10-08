@@ -115,6 +115,8 @@ let
   ];
 
   personal = {
+    # the login credentials are cached here
+    passthru.persist.directories = old: old ++ [ ".cache/spotify-player" ];
     passthru.settings = {
       forceSixelAlacritty = _: true;
       keymapDefaults = _: false;

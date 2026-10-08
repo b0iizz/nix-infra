@@ -253,6 +253,7 @@ let
   # uBlock Origin needs no entry: LibreWolf's policies.json installs it.
   librewolf = {
     passthru.settings.extensions = _: [ ];
+    passthru.persist.directories = old: old ++ [ ".librewolf" ];
   };
 in
 {
@@ -268,7 +269,10 @@ in
       ];
       wrappers.firefox = lib.mkMerge [
         (w.program (program pkgs.firefox))
-        (lib.mkAfter [ personal ])
+        (lib.mkAfter [
+          personal
+          { passthru.persist.directories = old: old ++ [ ".mozilla" ]; }
+        ])
       ];
     };
 
