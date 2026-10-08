@@ -75,9 +75,14 @@ let
 in
 {
   perSystem =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     {
       wrappers.alacritty = w.program (program pkgs);
+
+      desktop.launcher.entries.alacritty = {
+        name = "Terminal";
+        exec = [ (lib.getExe config.packages.alacritty) ];
+      };
     };
 
   # Opt-in per host (`roles = [ "alacritty" ]`), not part of `base`.

@@ -263,8 +263,13 @@ let
 in
 {
   perSystem =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     {
+      desktop.launcher.entries.librewolf = {
+        name = "Browser";
+        exec = [ (lib.getExe config.packages.librewolf) ];
+      };
+
       wrappers.librewolf = lib.mkMerge [
         (w.program (program pkgs.librewolf))
         (lib.mkAfter [

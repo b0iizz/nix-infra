@@ -31,6 +31,11 @@ withInputs
               };
             };
             settings = {
+              formatter.qmlformat = {
+                command = "${pkgs.kdePackages.qtdeclarative}/bin/qmlformat";
+                options = [ "-i" ];
+                includes = [ "*.qml" ];
+              };
               on-unmatched = "fatal";
               global.excludes = [
                 "*.jpg"
