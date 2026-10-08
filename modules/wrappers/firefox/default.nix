@@ -19,17 +19,16 @@
 #                        Only for LibreWolf: Firefox enforces addon signatures
 #                        and refuses them. A list, even an empty one, also
 #                        blocks manual installs.
-#   settings.overrides   `.override` arguments (attrsets or functions) applied
-#                        to the browser last; `wrapper.override` appends one.
 #
 # The result of `wrapFirefox` is a finished wrapper already, so the generic
 # wrapper does not wrap it again (`wrapper.exes = [ ]`); `wrapper.env` and
 # friends therefore have no effect unless `exes` is set.
 #
-# The wrapper has `.override` and `.version` like the browser package, so it
-# works as `programs.firefox.package` (note that module's policies file in
-# /etc/firefox shadows the wrapper's own on Firefox). Without that module,
-# `flake.modules.nixos.librewolf` installs the wrapper.
+# `.override` and `.overrideAttrs` of the wrapper act on the browser package (see
+# modules/lib/wrappers.nix), so it works as `programs.firefox.package`. That
+# module's /etc/firefox/policies file shadows the wrapper's own policies on
+# Firefox, which `flake.modules.nixos.firefox` takes care of. LibreWolf is
+# installed by `flake.modules.nixos.librewolf`.
 { self, lib, ... }:
 let
   w = self.lib.wrappers;
@@ -41,7 +40,6 @@ let
         policies = _: { };
         extraPrefs = _: "";
         extensions = _: null;
-        overrides = _: [ ];
       };
       passthru.wrapper.exes = _: [ ];
     }
@@ -49,22 +47,16 @@ let
       final:
       let
         s = final.passthru.settings;
-        package = lib.foldl' (pkg: o: pkg.override o) (s.browser.override (
+        package = s.browser.override (
           {
             extraPolicies = s.policies;
             extraPrefs = s.extraPrefs;
           }
           // lib.optionalAttrs (s.extensions != null) { nixExtensions = s.extensions; }
-        )) s.overrides;
+        );
       in
       {
         passthru.package.__assign = package;
-        passthru.version.__assign = package.version;
-        # `.override` as on the browser package, which is what NixOS'
-        # `programs.firefox` calls: the arguments go to the wrapped browser,
-        # after those from the settings.
-        passthru.override.__assign =
-          o: final.passthru.extend { passthru.settings.overrides = old: old ++ [ o ]; };
         meta.__assign = package.meta or { };
       }
     )
@@ -74,6 +66,10 @@ let
   # `ddgUrl` for the themed one below (catppuccin-mocha, base16, and the
   # monospace font of the system theme).
   ddgUrl = "https://duckduckgo.com/?q={searchTerms}";
+
+  # Completion for every engine. None of the others has a suggestions endpoint
+  # (search.nixos.org, noogle), so they borrow DuckDuckGo's.
+  suggestUrl = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
   # ddg = {
   #   font = "DejaVuSansM Nerd Font Mono";
   #   colors = {
@@ -136,25 +132,28 @@ let
             {
               Name = "DuckDuckGo (custom)";
               URLTemplate = ddgUrl;
-              SuggestURLTemplate = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
+              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "ddgc";
             }
             {
               Name = "Noogle Dev";
               URLTemplate = "https://noogle.dev/q?term={searchTerms}";
+              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "noo";
             }
             {
               Name = "Nixpkgs Search";
               URLTemplate = "https://search.nixos.org/packages?channel=unstable&query={searchTerms}";
+              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "pkgs";
             }
             {
               Name = "Nixos Options Search";
               URLTemplate = "https://search.nixos.org/options?channel=unstable&query={searchTerms}";
+              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "options";
             }
@@ -289,4 +288,23 @@ in
   flake.modules.nixos.librewolf =
     { pkgs, ... }:
     w.collect [ self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf ];
+
+  # Firefox reads /etc/firefox/policies/policies.json *instead of* the one next
+  # to the binary whenever it exists, and `programs.firefox` always writes it.
+  # So the wrapper's policies are handed to that module, which makes the file
+  # the system reads the complete one (LibreWolf has no such system file).
+  flake.modules.nixos.firefox =
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    {
+      programs.firefox = {
+        enable = true;
+        package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.firefox;
+        policies = config.programs.firefox.package.passthru.settings.policies or { };
+      };
+    };
 }

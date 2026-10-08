@@ -26,6 +26,11 @@
 #                       fixDesktopEntries (default true)
 #   wrapperArgs, buildCommand, meta, ... (plain derivation attributes)
 #
+# `wrapper.override` and `wrapper.overrideAttrs` act on the wrapped package, not
+# on the wrapper, so a wrapper can replace the package in anything that
+# customises it (`programs.<name>.package`). `wrapper.extend` customises the
+# wrapper itself, and `passthru.version` is the package's.
+#
 # Programs that read their config from a file render it into
 # `passthru.wrapper` from `final.passthru.settings`; programs with their own
 # builder replace `buildCommand`. Both are just extensions.
@@ -58,7 +63,22 @@ withInputs
         else
           { __output = ext; };
 
-      extendWith = drv: exts: infuse drv (toInfusion exts);
+      # Extending goes through the derivation's own `overrideAttrs`, so it
+      # has to run on the `raw` derivation; what users get is `decorate`d.
+      extendRaw = drv: exts: infuse drv (toInfusion exts);
+
+      # `override` and `overrideAttrs` of a wrapper are those of the wrapped
+      # package (`passthru.package`), as the wrapper stands in for it. To
+      # change the wrapper itself use `extend`.
+      decorate =
+        drv:
+        drv
+        // {
+          override = f: drv.extend { passthru.package = pkg: pkg.override f; };
+          overrideAttrs = f: drv.extend { passthru.package = pkg: pkg.overrideAttrs f; };
+        };
+
+      extendWith = drv: exts: decorate (extendRaw (drv.raw or drv) exts);
 
       mkBase =
         pkgs: wrapperName:
@@ -107,6 +127,8 @@ withInputs
                 fixDesktopEntries = true;
               };
               extend = ext: extendWith final.finalPackage ext;
+              raw = final.finalPackage;
+              version = pkg.version or (lib.getVersion pkg);
             };
 
             wrapperArgs = lib.escapeShellArgs (
