@@ -9,6 +9,7 @@
       imports = with self.modules.nixos; [
         desktop
         desktop-auth
+        desktop-wallpaper
       ];
 
       # The screen runs two conversations at once (see LockScreen.qml): the

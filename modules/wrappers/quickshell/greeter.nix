@@ -5,6 +5,7 @@
 #   settings.users    names to offer
 #   settings.session  argv that starts the session (greetd runs it as the user)
 #   settings.fingerprint  mention the reader in the hint
+#   settings.wallpaper    image shown behind the form, null for none
 #
 # The role `greeter` fills these from the host: its normal users and
 # `desktop.session`, which the compositor role sets. As that is the wrapped
@@ -25,6 +26,7 @@ let
         users = _: [ ];
         session = _: [ ];
         fingerprint = _: false;
+        wallpaper = _: null;
       };
     }
     (
@@ -63,6 +65,7 @@ let
                 (qml.property "var" "users" (builtins.toJSON s.users))
                 (qml.property "var" "session" (builtins.toJSON s.session))
                 (qml.property "bool" "fingerprint" (lib.boolToString s.fingerprint))
+                (qml.property "string" "wallpaper" (builtins.toJSON (if s.wallpaper == null then "" else s.wallpaper)))
               ]
             );
           "Greeter.qml" = _: ./Greeter.qml;
@@ -91,6 +94,7 @@ in
           users = _: lib.attrNames (lib.filterAttrs (_: u: u.isNormalUser) config.users.users);
           session = _: config.desktop.session;
           fingerprint = _: config.desktop.fingerprint;
+          wallpaper = _: config.desktop.wallpaper.default;
         };
       };
     in
@@ -99,6 +103,7 @@ in
         desktop
         desktop-auth
         desktop-session
+        desktop-wallpaper
       ];
 
       # greetd's stack is `auth substack login`, with the reader first. Swap

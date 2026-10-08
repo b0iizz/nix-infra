@@ -14,11 +14,28 @@ Rectangle {
     property alias hint: form.hint
     property alias inputEnabled: form.inputEnabled
     property alias echo: form.echo
+    // image behind everything, empty for none
+    property url wallpaper
 
     signal submitted(string text)
     signal userChosen(string name)
 
     color: Theme.base00
+
+    Image {
+        anchors.fill: parent
+        source: view.wallpaper
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        sourceSize: Qt.size(view.width, view.height)
+    }
+
+    // keeps the clock and the form readable on any image
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.base00
+        opacity: view.wallpaper.toString() === "" ? 0 : 0.45
+    }
 
     SystemClock {
         id: clock

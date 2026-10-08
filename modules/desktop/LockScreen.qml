@@ -19,6 +19,8 @@ Scope {
     readonly property int maxFingerprintRetries: 5
     property bool failed: false
     property int fingerprintRetries: 0
+    // what awww shows now (its layer is hidden behind the lock)
+    property url wallpaper: ""
 
     function unlockOn(result) {
         if (result === PamResult.Success)
@@ -31,6 +33,18 @@ Scope {
 
         function lock(): void {
             sessionLock.locked = true;
+        }
+    }
+
+    Process {
+        id: query
+
+        command: [ShellData.wallpaper.awww, "query"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = text.match(/displaying: image: (.+)/);
+                root.wallpaper = m ? "file://" + m[1].trim() : "";
+            }
         }
     }
 
@@ -81,6 +95,7 @@ Scope {
 
         onLockedChanged: {
             if (locked) {
+                query.running = true;
                 root.failed = false;
                 root.fingerprintRetries = 0;
                 password.start();
@@ -97,6 +112,7 @@ Scope {
         WlSessionLockSurface {
             AuthView {
                 anchors.fill: parent
+                wallpaper: root.wallpaper
                 users: [Quickshell.env("USER") ?? ""]
                 user: Quickshell.env("USER") ?? ""
                 inputEnabled: password.responseRequired

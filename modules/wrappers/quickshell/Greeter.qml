@@ -65,6 +65,7 @@ FloatingWindow {
 
     AuthView {
         anchors.fill: parent
+        wallpaper: GreeterData.wallpaper === "" ? "" : "file://" + GreeterData.wallpaper
         users: GreeterData.users
         user: window.user
         message: (window.failed ? "Login failed. " : "") + window.message
