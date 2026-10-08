@@ -12,8 +12,13 @@
 #   desktop.bar.items.<Name>  a QML component for the bar: `position`, `order`
 #                             and `qml` (source text or a path). <Name> is the
 #                             QML type name, so it starts with a capital.
-#   desktop.launcher.entries  { name, exec (argv), icon }  launcher entries
-#   desktop.startup           commands the compositor starts with the session
+#   desktop.overlays.<Name>   a QML component that lives at the root of the
+#                             shell (menus, notifications, ...): `qml`
+#   desktop.launcher.entries  { name, exec (argv), icon }  launcher entries for
+#                             what has no .desktop file; applications don't
+#                             register, the launcher finds their entries
+#   desktop.power.actions     { name, exec (argv), order }  shut down, log out, ...
+#   desktop.startup          commands the compositor starts with the session
 #   desktop.launcherCommand   command that toggles the launcher, if there is one
 {
   lib,
@@ -61,6 +66,31 @@ in
                 default = 100;
               };
               qml = mkOption { type = types.either types.lines types.path; };
+            };
+          }
+        );
+        default = { };
+      };
+
+      overlays = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options.qml = mkOption { type = types.either types.lines types.path; };
+          }
+        );
+        default = { };
+      };
+
+      power.actions = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options = {
+              name = mkOption { type = types.str; };
+              exec = mkOption { type = types.listOf types.str; };
+              order = mkOption {
+                type = types.int;
+                default = 100;
+              };
             };
           }
         );
@@ -139,44 +169,52 @@ in
       quickshell = c: (quickshellPackage c).passthru.settings;
 
       tests = {
+        # the log out action comes from the hyprland role, the rest from the
+        # defaults of the quickshell role
         testShellGetsTheRegistrations = {
           expr = {
             entries = lib.attrNames (quickshell full).launcherEntries;
             items = lib.attrNames (quickshell full).barItems;
+            overlays = lib.attrNames (quickshell full).overlays;
             workspaces = lib.length (quickshell full).workspaces;
           };
           expected = {
             entries = [
-              "alacritty"
-              "librewolf"
+              "power-logout"
+              "power-poweroff"
+              "power-reboot"
+              "power-suspend"
             ];
-            items = [ "Workspaces" ];
+            items = [
+              "PowerButton"
+              "Workspaces"
+            ];
+            overlays = [ "PowerMenu" ];
             workspaces = 9;
           };
         };
         testShellAlone = {
           expr = {
-            items = (quickshell shellOnly).barItems;
+            entries = lib.attrNames (quickshell shellOnly).launcherEntries;
+            items = lib.attrNames (quickshell shellOnly).barItems;
             workspaces = (quickshell shellOnly).workspaces;
           };
           expected = {
-            items = { };
+            entries = [
+              "power-poweroff"
+              "power-reboot"
+              "power-suspend"
+            ];
+            items = [ "PowerButton" ];
             workspaces = [ ];
           };
         };
         testFullHost = {
           expr = {
-            entries = lib.attrNames full.desktop.launcher.entries;
-            items = lib.attrNames full.desktop.bar.items;
             launcher = (hypr full).launcher != null;
             startup = lib.length (hypr full).startup;
           };
           expected = {
-            entries = [
-              "alacritty"
-              "librewolf"
-            ];
-            items = [ "Workspaces" ];
             launcher = true;
             startup = 1;
           };
@@ -197,8 +235,16 @@ in
     {
       checks.desktop-roles = pkgs.runCommand "check-desktop-roles" { } (
         if failed == [ ] then
-          # the bar item of one role ends up in the tree of the other's wrapper
-          "test -e ${(quickshellPackage full).passthru.config.dir}/Workspaces.qml && touch $out"
+          # what the roles registered ends up in the tree of the wrapper
+          ''
+            tree=${(quickshellPackage full).passthru.config.dir}
+            test -e $tree/Workspaces.qml
+            test -e $tree/PowerButton.qml
+            grep -q '"Log out"' $tree/PowerMenu.qml
+            ! grep -q ACTIONS_JSON $tree/PowerMenu.qml
+            grep -q 'PowerMenu {}' $tree/shell.qml
+            touch $out
+          ''
         else
           ''
             echo ${lib.escapeShellArg (lib.generators.toPretty { } failed)} >&2

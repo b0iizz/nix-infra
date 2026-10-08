@@ -83,20 +83,5 @@ in
   # Opt-in per host (`roles = [ "alacritty" ]`), not part of `base`.
   flake.modules.nixos.alacritty =
     { pkgs, ... }:
-    let
-      alacritty = self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty;
-    in
-    {
-      imports = [ self.modules.nixos.desktop ];
-
-      config = lib.mkMerge [
-        (w.collect [ alacritty ])
-        {
-          desktop.launcher.entries.alacritty = {
-            name = "Terminal";
-            exec = [ (lib.getExe alacritty) ];
-          };
-        }
-      ];
-    };
+    w.collect [ self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty ];
 }

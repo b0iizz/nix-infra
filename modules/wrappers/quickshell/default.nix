@@ -6,7 +6,11 @@
 #                             and qmldir are made from it: whoever sets it also
 #                             adds `passthru.files."<Name>.qml"`, as file names
 #                             cannot come from the finished wrapper.
-#   settings.launcherEntries  <name> -> { name, exec, icon }
+#   settings.overlays         <Name> -> { qml }, instantiated in shell.qml. Same
+#                             rule as for the bar items.
+#   settings.launcherEntries  <name> -> { name, exec, icon }: what the launcher
+#                             offers besides the desktop entries it finds
+#                             itself (Quickshell's DesktopEntries)
 #
 # On a host the quickshell role fills these from `desktop.*`
 # (modules/desktop.nix); the bare wrapper has an empty bar.
@@ -46,6 +50,7 @@ let
       passthru.settings = {
         workspaces = _: [ ];
         barItems = _: { };
+        overlays = _: { };
         launcherEntries = _: { };
       };
     }
@@ -58,7 +63,10 @@ let
         items = lib.sort (a: b: a.order < b.order || (a.order == b.order && a.name < b.name)) (
           lib.mapAttrsToList (name: i: i // { inherit name; }) s.barItems
         );
-        badNames = lib.filter (i: builtins.match "[A-Z][A-Za-z0-9]*" i.name == null) items;
+        overlays = lib.attrNames s.overlays;
+        badNames = lib.filter (n: builtins.match "[A-Z][A-Za-z0-9]*" n == null) (
+          map (i: i.name) items ++ overlays
+        );
         inPosition =
           p: lib.concatMapStringsSep "\n" (i: "${i.name} {}") (lib.filter (i: i.position == p) items);
 
@@ -151,6 +159,7 @@ let
             ShellRoot {
                 Bar {}
                 Launcher {}
+            ${lib.concatMapStringsSep "\n" (n: "    ${n} {}") overlays}
             }
           '';
           "qmldir" =
@@ -163,6 +172,7 @@ let
                 "Launcher"
               ]
               ++ map (i: i.name) items
+              ++ overlays
             );
           "Theme.qml" = _: theme;
           "ShellData.qml" = _: shellData;
@@ -170,9 +180,7 @@ let
           "Bar.qml" =
             _:
             assert lib.assertMsg (badNames == [ ])
-              "quickshell: bar items are QML types and need a capitalised name: ${
-                toString (map (i: i.name) badNames)
-              }";
+              "quickshell: bar items and overlays are QML types and need a capitalised name: ${toString badNames}";
             bar;
           "Launcher.qml" = _: ./Launcher.qml;
         };
@@ -192,6 +200,9 @@ in
   # Opt-in per host (`roles = [ "quickshell" ]`). Takes what the host's roles
   # registered in `desktop.*` (modules/desktop.nix); Hyprland (or whatever
   # compositor) picks the start command and the launcher key up from there.
+  #
+  # Comes with what every desktop needs: the shutdown menu (desktop/power.nix)
+  # and the session basics (desktop/session.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
@@ -200,19 +211,24 @@ in
           passthru.settings = {
             workspaces = _: config.desktop.workspaces;
             barItems = _: config.desktop.bar.items;
+            overlays = _: config.desktop.overlays;
             launcherEntries = _: config.desktop.launcher.entries;
           };
         }
         # file names cannot come from the settings, see modules/wrappers/files.nix
         {
-          passthru.files = lib.mapAttrs' (
-            name: item: lib.nameValuePair "${name}.qml" (_: item.qml)
-          ) config.desktop.bar.items;
+          passthru.files = lib.mapAttrs' (name: c: lib.nameValuePair "${name}.qml" (_: c.qml)) (
+            config.desktop.bar.items // config.desktop.overlays
+          );
         }
       ];
     in
     {
-      imports = [ self.modules.nixos.desktop ];
+      imports = with self.modules.nixos; [
+        desktop
+        desktop-power
+        desktop-session
+      ];
 
       environment.systemPackages = [ quickshell ];
       desktop.startup = [ (lib.getExe quickshell) ];

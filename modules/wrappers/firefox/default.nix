@@ -281,22 +281,7 @@ in
   # Opt-in per host (`roles = [ "librewolf" ]`), not part of `base`.
   flake.modules.nixos.librewolf =
     { pkgs, ... }:
-    let
-      librewolf = self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf;
-    in
-    {
-      imports = [ self.modules.nixos.desktop ];
-
-      config = lib.mkMerge [
-        (w.collect [ librewolf ])
-        {
-          desktop.launcher.entries.librewolf = {
-            name = "Browser";
-            exec = [ (lib.getExe librewolf) ];
-          };
-        }
-      ];
-    };
+    w.collect [ self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf ];
 
   # Firefox reads /etc/firefox/policies/policies.json *instead of* the one next
   # to the binary whenever it exists, and `programs.firefox` always writes it.

@@ -260,6 +260,16 @@ in
         monitor = r.monitor or null;
       }) hyprland.passthru.settings.workspaces;
 
+      desktop.power.actions.logout = {
+        name = "Log out";
+        exec = [
+          "hyprctl"
+          "dispatch"
+          "hl.dsp.exit()"
+        ];
+        order = 40;
+      };
+
       desktop.bar.items.Workspaces = {
         position = "left";
         order = 10;
