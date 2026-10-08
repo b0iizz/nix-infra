@@ -304,6 +304,23 @@
         "type": "github"
       }
     },
+    "infuse": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782538150,
+        "narHash": "sha256-PFRrjDC62Mk7cgyst4l/riW0C7o39srZt/+rYq9Iovs=",
+        "ref": "trunk",
+        "rev": "364ea18b5611b5fd6a6acd7151411b430a70e194",
+        "revCount": 57,
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/infuse.nix"
+      },
+      "original": {
+        "ref": "trunk",
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/infuse.nix"
+      }
+    },
     "make-shell": {
       "inputs": {
         "flake-compat": "flake-compat_2"
@@ -537,6 +554,7 @@
         "flake-file": "flake-file",
         "flake-parts": "flake-parts_2",
         "import-tree": "import-tree",
+        "infuse": "infuse",
         "make-shell": "make-shell",
         "nixos-anywhere": "nixos-anywhere",
         "nixos-facter": "nixos-facter",

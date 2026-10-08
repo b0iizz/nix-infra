@@ -26,6 +26,10 @@
     flake-file.url = "github:vic/flake-file";
     flake-parts.url = "github:hercules-ci/flake-parts";
     import-tree.url = "github:vic/import-tree";
+    infuse = {
+      url = "git+https://codeberg.org/amjoseph/infuse.nix?ref=trunk";
+      flake = false;
+    };
     make-shell.url = "github:nicknovitski/make-shell";
     nixos-anywhere = {
       url = "github:nix-community/nixos-anywhere";
