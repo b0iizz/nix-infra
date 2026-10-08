@@ -47,10 +47,21 @@ let
       final:
       let
         s = final.passthru.settings;
+        t = final.passthru.theme;
+        dark = t.polarity == "dark";
+        # Fonts and color scheme from `passthru.theme`, before `settings.extraPrefs`.
+        themePrefs = ''
+          defaultPref("font.name.monospace.x-western", ${builtins.toJSON t.fonts.monospace});
+          defaultPref("font.name.sans-serif.x-western", ${builtins.toJSON t.fonts.sansSerif});
+          defaultPref("font.name.serif.x-western", ${builtins.toJSON t.fonts.serif});
+          defaultPref("browser.theme.toolbar-theme", ${if dark then "0" else "1"});
+          defaultPref("browser.theme.content-theme", ${if dark then "0" else "1"});
+          defaultPref("layout.css.prefers-color-scheme.content-override", ${if dark then "0" else "1"});
+        '';
         package = s.browser.override (
           {
             extraPolicies = s.policies;
-            extraPrefs = s.extraPrefs;
+            extraPrefs = themePrefs + s.extraPrefs;
           }
           // lib.optionalAttrs (s.extensions != null) { nixExtensions = s.extensions; }
         );
@@ -62,196 +73,186 @@ let
     )
   ];
 
-  # Styling is off for now. To theme DuckDuckGo like the desktop, swap
-  # `ddgUrl` for the themed one below (catppuccin-mocha, base16, and the
-  # monospace font of the system theme).
-  ddgUrl = "https://duckduckgo.com/?q={searchTerms}";
-  # ddg = {
-  #   font = "DejaVuSansM Nerd Font Mono";
-  #   colors = {
-  #     base00 = "1e1e2e";
-  #     base01 = "181825";
-  #     base04 = "585b70";
-  #     base05 = "cdd6f4";
-  #   };
-  # };
-  # ddgUrl =
-  #   with ddg.colors;
-  #   "https://duckduckgo.com/?kaj=m&kbg=-1&kbe=0&kbi=1&kbj=1&kp=-2&kav=1&k1=-1&kt=${lib.escapeURL ddg.font}&kae=d&k7=${base00}&kj=${base01}&k9=${base05}&kaa=${base04}&k8=${base05}&kx=${base05}&k21=${base01}&q={searchTerms}";
+  personal =
+    final:
+    let
+      c = final.passthru.theme.colors;
+      # DuckDuckGo's own theme parameters, filled from `passthru.theme`
+      ddgUrl = "https://duckduckgo.com/?kaj=m&kbg=-1&kbe=0&kbi=1&kbj=1&kp=-2&kav=1&k1=-1&kt=${lib.escapeURL final.passthru.theme.fonts.monospace}&kae=d&k7=${c.base00}&kj=${c.base01}&k9=${c.base05}&kaa=${c.base04}&k8=${c.base05}&kx=${c.base05}&k21=${c.base01}&q={searchTerms}";
+    in
+    {
+      passthru.settings = {
+        policies = _: {
+          DisableAppUpdate = true;
+          ExtensionUpdate = false;
 
-  personal = {
-    passthru.settings = {
-      policies = _: {
-        DisableAppUpdate = true;
-        ExtensionUpdate = false;
+          # Passwords live in Bitwarden
+          AutofillAddressEnabled = false;
+          AutofillCreditCardEnabled = false;
+          OfferToSaveLogins = false;
+          PasswordManagerEnabled = false;
+          DisableMasterPasswordCreation = true;
 
-        # Passwords live in Bitwarden
-        AutofillAddressEnabled = false;
-        AutofillCreditCardEnabled = false;
-        OfferToSaveLogins = false;
-        PasswordManagerEnabled = false;
-        DisableMasterPasswordCreation = true;
+          DefaultDownloadDirectory = "\${home}/Downloads";
+          DownloadDirectory = "\${home}/Downloads";
+          PromptForDownloadLocation = false;
 
-        DefaultDownloadDirectory = "\${home}/Downloads";
-        DownloadDirectory = "\${home}/Downloads";
-        PromptForDownloadLocation = false;
+          NoDefaultBookmarks = true;
+          DisplayBookmarksToolbar = "never";
+          DisplayMenuBar = "never";
+          ShowHomeButton = false;
 
-        NoDefaultBookmarks = true;
-        DisplayBookmarksToolbar = "never";
-        DisplayMenuBar = "never";
-        ShowHomeButton = false;
+          EncryptedMediaExtensions = {
+            Enabled = true;
+            Locked = true;
+          };
+          PictureInPicture = {
+            Enabled = false;
+            Locked = true;
+          };
 
-        EncryptedMediaExtensions = {
-          Enabled = true;
-          Locked = true;
-        };
-        PictureInPicture = {
-          Enabled = false;
-          Locked = true;
-        };
+          DNSOverHTTPS = {
+            Enabled = true;
+            ProviderURL = "https://doh.ffmuc.net/dns-query";
+            Locked = true;
+            Fallback = true;
+          };
+          NetworkPrediction = false;
+          HttpsOnlyMode = "force_enabled";
+          Certificates.ImportEnterpriseRoots = true;
 
-        DNSOverHTTPS = {
-          Enabled = true;
-          ProviderURL = "https://doh.ffmuc.net/dns-query";
-          Locked = true;
-          Fallback = true;
-        };
-        NetworkPrediction = false;
-        HttpsOnlyMode = "force_enabled";
-        Certificates.ImportEnterpriseRoots = true;
+          SearchBar = "unified";
+          SearchSuggestEnabled = true;
+          SearchEngines = {
+            Default = "DuckDuckGo (custom)";
+            Add = [
+              {
+                Name = "DuckDuckGo (custom)";
+                URLTemplate = ddgUrl;
+                SuggestURLTemplate = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
+                Method = "GET";
+                Alias = "ddgc";
+              }
+              {
+                Name = "Noogle Dev";
+                URLTemplate = "https://noogle.dev/q?term={searchTerms}";
+                Method = "GET";
+                Alias = "noo";
+              }
+              {
+                Name = "Nixpkgs Search";
+                URLTemplate = "https://search.nixos.org/packages?channel=unstable&query={searchTerms}";
+                Method = "GET";
+                Alias = "pkgs";
+              }
+              {
+                Name = "Nixos Options Search";
+                URLTemplate = "https://search.nixos.org/options?channel=unstable&query={searchTerms}";
+                Method = "GET";
+                Alias = "options";
+              }
+            ];
+            # The stock engines of Firefox and LibreWolf; a name that does not
+            # exist (any more) is ignored, so this only ever needs to grow.
+            Remove = [
+              "Google"
+              "DuckDuckGo"
+              "DuckDuckGo No-AI"
+              "Bing"
+              "Perplexity"
+              "Ecosia"
+              "Mojeek"
+              "Startpage"
+              "Wikipedia (en)"
+            ];
+            PreventInstalls = true;
+          };
 
-        SearchBar = "unified";
-        SearchSuggestEnabled = true;
-        SearchEngines = {
-          Default = "DuckDuckGo (custom)";
-          Add = [
-            {
-              Name = "DuckDuckGo (custom)";
-              URLTemplate = ddgUrl;
-              SuggestURLTemplate = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
-              Method = "GET";
-              Alias = "ddgc";
-            }
-            {
-              Name = "Noogle Dev";
-              URLTemplate = "https://noogle.dev/q?term={searchTerms}";
-              Method = "GET";
-              Alias = "noo";
-            }
-            {
-              Name = "Nixpkgs Search";
-              URLTemplate = "https://search.nixos.org/packages?channel=unstable&query={searchTerms}";
-              Method = "GET";
-              Alias = "pkgs";
-            }
-            {
-              Name = "Nixos Options Search";
-              URLTemplate = "https://search.nixos.org/options?channel=unstable&query={searchTerms}";
-              Method = "GET";
-              Alias = "options";
-            }
+          OverrideFirstRunPage = "";
+          OverridePostUpdatePage = "";
+          FirefoxHome = {
+            Search = true;
+            TopSites = false;
+            SponsoredTopSites = false;
+            Highlights = false;
+            Stories = false;
+            SponsoredStories = false;
+            Locked = true;
+          };
+          Homepage = {
+            URL = "about:blank";
+            StartPage = "none";
+            Locked = true;
+          };
+
+          # Popups are not blocked, and that is locked. Is that wanted?
+          PopupBlocking = {
+            Default = false;
+            Locked = true;
+          };
+
+          RequestedLocales = [
+            "de"
+            "en-US"
           ];
-          # The stock engines of Firefox and LibreWolf; a name that does not
-          # exist (any more) is ignored, so this only ever needs to grow.
-          Remove = [
-            "Google"
-            "DuckDuckGo"
-            "DuckDuckGo No-AI"
-            "Bing"
-            "Perplexity"
-            "Ecosia"
-            "Mojeek"
-            "Startpage"
-            "Wikipedia (en)"
-          ];
-          PreventInstalls = true;
+
+          SanitizeOnShutdown = {
+            Cache = true;
+            Cookies = true;
+            FormData = true;
+            Locked = true;
+          };
+
+          UserMessaging = {
+            ExtensionRecommendations = false;
+            FeatureRecommendations = false;
+            UrlbarInterventions = false;
+            SkipOnboarding = true;
+            MoreFromMozilla = false;
+            FirefoxLabs = false;
+            Locked = true;
+          };
+          FirefoxSuggest = {
+            WebSuggestions = false;
+            SponsoredSuggestions = false;
+            ImproveSuggest = false;
+            Locked = true;
+          };
+
+          DisableFeedbackCommands = true;
+          DisableTelemetry = true;
+          DisableFirefoxStudies = true;
+          DontCheckDefaultBrowser = true;
+          SkipTermsOfUse = true;
+          DisableFirefoxAccounts = true;
+          DisableFormHistory = true;
+          DisableProfileImport = true;
+          DisableProfileRefresh = true;
+          DisableSetDesktopBackground = true;
+
+          EnableTrackingProtection = {
+            Value = true;
+            Locked = true;
+            Cryptomining = true;
+            Fingerprinting = true;
+            EmailTracking = true;
+            SuspectedFingerprinting = true;
+          };
+          Cookies = {
+            Behavior = "reject-tracker";
+            BehaviorPrivateBrowsing = "reject";
+            Locked = true;
+          };
+
+          InstallAddonsPermission.Default = false;
         };
 
-        OverrideFirstRunPage = "";
-        OverridePostUpdatePage = "";
-        FirefoxHome = {
-          Search = true;
-          TopSites = false;
-          SponsoredTopSites = false;
-          Highlights = false;
-          Stories = false;
-          SponsoredStories = false;
-          Locked = true;
-        };
-        Homepage = {
-          URL = "about:blank";
-          StartPage = "none";
-          Locked = true;
-        };
-
-        # Popups are not blocked, and that is locked. Is that wanted?
-        PopupBlocking = {
-          Default = false;
-          Locked = true;
-        };
-
-        RequestedLocales = [
-          "de"
-          "en-US"
-        ];
-
-        SanitizeOnShutdown = {
-          Cache = true;
-          Cookies = true;
-          FormData = true;
-          Locked = true;
-        };
-
-        UserMessaging = {
-          ExtensionRecommendations = false;
-          FeatureRecommendations = false;
-          UrlbarInterventions = false;
-          SkipOnboarding = true;
-          MoreFromMozilla = false;
-          FirefoxLabs = false;
-          Locked = true;
-        };
-        FirefoxSuggest = {
-          WebSuggestions = false;
-          SponsoredSuggestions = false;
-          ImproveSuggest = false;
-          Locked = true;
-        };
-
-        DisableFeedbackCommands = true;
-        DisableTelemetry = true;
-        DisableFirefoxStudies = true;
-        DontCheckDefaultBrowser = true;
-        SkipTermsOfUse = true;
-        DisableFirefoxAccounts = true;
-        DisableFormHistory = true;
-        DisableProfileImport = true;
-        DisableProfileRefresh = true;
-        DisableSetDesktopBackground = true;
-
-        EnableTrackingProtection = {
-          Value = true;
-          Locked = true;
-          Cryptomining = true;
-          Fingerprinting = true;
-          EmailTracking = true;
-          SuspectedFingerprinting = true;
-        };
-        Cookies = {
-          Behavior = "reject-tracker";
-          BehaviorPrivateBrowsing = "reject";
-          Locked = true;
-        };
-
-        InstallAddonsPermission.Default = false;
+        extraPrefs = _: ''
+          // Show more ssl cert infos
+          lockPref("security.identityblock.show_extended_validation", true);
+        '';
       };
-
-      extraPrefs = _: ''
-        // Show more ssl cert infos
-        lockPref("security.identityblock.show_extended_validation", true);
-      '';
     };
-  };
 
   # Declarative extensions: other modules add theirs with
   #   passthru.settings.extensions = old: old ++ [ (pkgs.fetchFirefoxAddon { ... }) ];

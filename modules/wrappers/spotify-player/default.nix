@@ -5,7 +5,9 @@
 #   settings.keymap          key sequence -> command, overlaid on the built-in
 #                            keymap
 #   settings.keymapDefaults  false: unbind every built-in key not rebound above
-#   settings.theme           theme.toml
+#   settings.theme           theme.toml verbatim. Left empty, the theme is
+#                            generated from `passthru.theme` (theme.nix) and
+#                            selected in app.toml.
 #   settings.forceSixelAlacritty
 #                            run as TERM=foot inside alacritty, which makes the
 #                            cover art render via sixel
@@ -47,6 +49,38 @@ let
         s = final.passthru.settings;
         h = w.fileHelpers pkgs;
 
+        c = self.lib.theme.hash final.passthru.theme.colors;
+        # base16 -> ANSI slots, as in base16-shell
+        generatedTheme = {
+          themes = [
+            {
+              name = "wrapper";
+              palette = {
+                background = c.base00;
+                foreground = c.base05;
+                black = c.base00;
+                red = c.base08;
+                green = c.base0B;
+                yellow = c.base0A;
+                blue = c.base0D;
+                magenta = c.base0E;
+                cyan = c.base0C;
+                white = c.base05;
+                bright_black = c.base03;
+                bright_red = c.base08;
+                bright_green = c.base0B;
+                bright_yellow = c.base0A;
+                bright_blue = c.base0D;
+                bright_magenta = c.base0E;
+                bright_cyan = c.base0C;
+                bright_white = c.base07;
+              };
+            }
+          ];
+        };
+        generated = s.theme == { };
+        app = if generated then s.app // { theme = "wrapper"; } else s.app;
+
         keymap =
           lib.optionalAttrs (!s.keymapDefaults) (lib.mapAttrs (_: _: "None") builtinKeymap) // s.keymap;
 
@@ -55,7 +89,7 @@ let
       in
       {
         passthru.files = {
-          "app.toml" = _: ifSet (s.app != defaultApp) (h.toml s.app);
+          "app.toml" = _: ifSet (app != defaultApp) (h.toml app);
           "keymap.toml" =
             _:
             ifSet (keymap != { }) (
@@ -63,7 +97,7 @@ let
                 keymaps = lib.mapAttrsToList (key_sequence: command: { inherit key_sequence command; }) keymap;
               }
             );
-          "theme.toml" = _: ifSet (s.theme != { }) (h.toml s.theme);
+          "theme.toml" = _: h.toml (if generated then generatedTheme else s.theme);
         };
 
         passthru.wrapper = {
