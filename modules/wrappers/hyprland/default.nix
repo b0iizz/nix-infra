@@ -226,23 +226,11 @@ in
         (w.program (program pkgs))
         (lib.mkAfter [ (personal config.packages) ])
       ];
-
-      # Registrations for the shell, if there is one. The layout is read off
-      # the wrapper so that overriding its workspaces updates the bar too.
-      desktop.workspaces = map (r: {
-        name = lib.removePrefix "name:" r.workspace;
-        monitor = r.monitor or null;
-      }) config.packages.hyprland.passthru.settings.workspaces;
-
-      desktop.bar.items.Workspaces = {
-        position = "left";
-        order = 10;
-        qml = ./Workspaces.qml;
-      };
     };
 
   # Opt-in per host (`roles = [ "hyprland" ]`). Whatever other roles asked for
-  # through `desktop.*` (nixos/desktop in modules/desktop.nix) is added here.
+  # through `desktop.*` (modules/desktop.nix) is added to the wrapper here, and
+  # the workspaces are registered there for a shell, if the host has one.
   #
   # ponytail: the session file (share/wayland-sessions/hyprland.desktop) in the
   # wrapper still points at the unwrapped start-hyprland, so a display manager
@@ -251,17 +239,31 @@ in
   # forwarded either.
   flake.modules.nixos.hyprland =
     { config, pkgs, ... }:
+    let
+      hyprland = self.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
+    in
     {
       imports = [ self.modules.nixos.desktop ];
 
       programs.hyprland = {
         enable = true;
-        package = self.packages.${pkgs.stdenv.hostPlatform.system}.hyprland.extend {
+        package = hyprland.extend {
           passthru.settings = {
             startup = old: old ++ config.desktop.startup;
-            launcher = _: config.desktop.launcher;
+            launcher = _: config.desktop.launcherCommand;
           };
         };
+      };
+
+      desktop.workspaces = map (r: {
+        name = lib.removePrefix "name:" r.workspace;
+        monitor = r.monitor or null;
+      }) hyprland.passthru.settings.workspaces;
+
+      desktop.bar.items.Workspaces = {
+        position = "left";
+        order = 10;
+        qml = ./Workspaces.qml;
       };
     };
 }

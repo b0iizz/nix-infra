@@ -1,14 +1,23 @@
-# Quickshell, wrapped: a QML tree assembled from the `desktop` registry
-# (modules/desktop.nix) and `passthru.theme`, started with `--path`.
+# Quickshell, wrapped: a QML tree assembled from `passthru.settings` and
+# `passthru.theme`, started with `--path`.
+#
+#   settings.workspaces       [ { name, monitor } ]
+#   settings.barItems         <Name> -> { position, order, qml }. Only the bar
+#                             and qmldir are made from it: whoever sets it also
+#                             adds `passthru.files."<Name>.qml"`, as file names
+#                             cannot come from the finished wrapper.
+#   settings.launcherEntries  <name> -> { name, exec, icon }
+#
+# On a host the quickshell role fills these from `desktop.*`
+# (modules/desktop.nix); the bare wrapper has an empty bar.
 #
 #   Theme.qml       singleton: colors (base00..), fonts, sizes, opacities of
 #                   `passthru.theme`, e.g. `Theme.base0D`, `Theme.fontMonospace`,
 #                   `Theme.opacityDesktop`
-#   ShellData.qml   singleton: `workspaces` and `launcherEntries` from the registry
-#   Bar.qml         one panel per screen; the bar items of the registry, by
-#                   position and order
+#   ShellData.qml   singleton: `workspaces` and `launcherEntries`
+#   Bar.qml         one panel per screen; the bar items by position and order
 #   Launcher.qml    toggled with `quickshell ipc call launcher toggle`
-#   <Item>.qml      one per `desktop.bar.items.<Item>`; may use Theme and ShellData
+#   <Item>.qml      one per bar item; may use Theme and ShellData
 #
 # The tree is flat on purpose: QML finds the types next to it through the
 # generated qmldir. Nothing in it knows about Hyprland or any other module.
@@ -31,15 +40,23 @@ let
     ) types
     + "\n";
 
-  program = pkgs: desktop: [
+  program = pkgs: [
     (w.withPackage pkgs.quickshell)
+    {
+      passthru.settings = {
+        workspaces = _: [ ];
+        barItems = _: { };
+        launcherEntries = _: { };
+      };
+    }
     (
       final:
       let
+        s = final.passthru.settings;
         t = final.passthru.theme;
 
         items = lib.sort (a: b: a.order < b.order || (a.order == b.order && a.name < b.name)) (
-          lib.mapAttrsToList (name: i: i // { inherit name; }) desktop.bar.items
+          lib.mapAttrsToList (name: i: i // { inherit name; }) s.barItems
         );
         badNames = lib.filter (i: builtins.match "[A-Z][A-Za-z0-9]*" i.name == null) items;
         inPosition =
@@ -70,8 +87,8 @@ let
 
         shellData = singleton (
           lib.concatStringsSep "\n" [
-            (property "var" "workspaces" (builtins.toJSON desktop.workspaces))
-            (property "var" "launcherEntries" (builtins.toJSON (lib.attrValues desktop.launcher.entries)))
+            (property "var" "workspaces" (builtins.toJSON s.workspaces))
+            (property "var" "launcherEntries" (builtins.toJSON (lib.attrValues s.launcherEntries)))
           ]
         );
 
@@ -126,10 +143,6 @@ let
           }
         '';
       in
-      assert lib.assertMsg (badNames == [ ])
-        "quickshell: bar items are QML types and need a capitalised name: ${
-          toString (map (i: i.name) badNames)
-        }";
       {
         passthru.files = {
           "shell.qml" = _: ''
@@ -153,10 +166,16 @@ let
             );
           "Theme.qml" = _: theme;
           "ShellData.qml" = _: shellData;
-          "Bar.qml" = _: bar;
+          # the check is in a value: the names of the files may not depend on `final`
+          "Bar.qml" =
+            _:
+            assert lib.assertMsg (badNames == [ ])
+              "quickshell: bar items are QML types and need a capitalised name: ${
+                toString (map (i: i.name) badNames)
+              }";
+            bar;
           "Launcher.qml" = _: ./Launcher.qml;
-        }
-        // lib.listToAttrs (map (i: lib.nameValuePair "${i.name}.qml" (_: i.qml)) items);
+        };
 
         passthru.wrapper.flags.__append = [ "--path ${final.passthru.config.dir}" ];
       }
@@ -165,24 +184,38 @@ let
 in
 {
   perSystem =
-    { config, pkgs, ... }:
+    { pkgs, ... }:
     {
-      wrappers.quickshell = w.program (program pkgs config.desktop);
+      wrappers.quickshell = w.program (program pkgs);
     };
 
-  # Opt-in per host (`roles = [ "quickshell" ]`). Hyprland (or whatever
-  # compositor) picks the start command and the launcher key up through
-  # `desktop.*`, see modules/desktop.nix.
+  # Opt-in per host (`roles = [ "quickshell" ]`). Takes what the host's roles
+  # registered in `desktop.*` (modules/desktop.nix); Hyprland (or whatever
+  # compositor) picks the start command and the launcher key up from there.
   flake.modules.nixos.quickshell =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     let
-      quickshell = self.packages.${pkgs.stdenv.hostPlatform.system}.quickshell;
+      quickshell = self.packages.${pkgs.stdenv.hostPlatform.system}.quickshell.extend [
+        {
+          passthru.settings = {
+            workspaces = _: config.desktop.workspaces;
+            barItems = _: config.desktop.bar.items;
+            launcherEntries = _: config.desktop.launcher.entries;
+          };
+        }
+        # file names cannot come from the settings, see modules/wrappers/files.nix
+        {
+          passthru.files = lib.mapAttrs' (
+            name: item: lib.nameValuePair "${name}.qml" (_: item.qml)
+          ) config.desktop.bar.items;
+        }
+      ];
     in
     {
       imports = [ self.modules.nixos.desktop ];
 
       environment.systemPackages = [ quickshell ];
       desktop.startup = [ (lib.getExe quickshell) ];
-      desktop.launcher = "${lib.getExe quickshell} ipc call launcher toggle";
+      desktop.launcherCommand = "${lib.getExe quickshell} ipc call launcher toggle";
     };
 }
