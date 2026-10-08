@@ -66,10 +66,6 @@ let
   # `ddgUrl` for the themed one below (catppuccin-mocha, base16, and the
   # monospace font of the system theme).
   ddgUrl = "https://duckduckgo.com/?q={searchTerms}";
-
-  # Completion for every engine. None of the others has a suggestions endpoint
-  # (search.nixos.org, noogle), so they borrow DuckDuckGo's.
-  suggestUrl = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
   # ddg = {
   #   font = "DejaVuSansM Nerd Font Mono";
   #   colors = {
@@ -132,28 +128,25 @@ let
             {
               Name = "DuckDuckGo (custom)";
               URLTemplate = ddgUrl;
-              SuggestURLTemplate = suggestUrl;
+              SuggestURLTemplate = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
               Method = "GET";
               Alias = "ddgc";
             }
             {
               Name = "Noogle Dev";
               URLTemplate = "https://noogle.dev/q?term={searchTerms}";
-              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "noo";
             }
             {
               Name = "Nixpkgs Search";
               URLTemplate = "https://search.nixos.org/packages?channel=unstable&query={searchTerms}";
-              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "pkgs";
             }
             {
               Name = "Nixos Options Search";
               URLTemplate = "https://search.nixos.org/options?channel=unstable&query={searchTerms}";
-              SuggestURLTemplate = suggestUrl;
               Method = "GET";
               Alias = "options";
             }
