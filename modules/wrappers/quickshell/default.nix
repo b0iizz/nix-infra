@@ -216,8 +216,9 @@ in
   # compositor) picks the start command and the launcher key up from there.
   #
   # Comes with what every desktop needs: the shutdown menu (desktop/power.nix),
-  # the lock screen (desktop/lock.nix), the polkit agent (desktop/polkit.nix)
-  # and the session basics (desktop/session.nix).
+  # the lock screen (desktop/lock.nix), the polkit agent (desktop/polkit.nix),
+  # the wallpaper daemon and picker (desktop/wallpaper.nix) and the session
+  # basics (desktop/session.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
@@ -245,6 +246,7 @@ in
         desktop-power
         desktop-lock
         desktop-polkit
+        desktop-wallpaper
         desktop-session
       ];
 

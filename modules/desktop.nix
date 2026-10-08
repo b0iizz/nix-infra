@@ -234,15 +234,18 @@ in
               "power-poweroff"
               "power-reboot"
               "power-suspend"
+              "wallpaper"
             ];
             items = [
               "PowerButton"
+              "WallpaperButton"
               "Workspaces"
             ];
             overlays = [
               "LockScreen"
               "PolkitAgent"
               "PowerMenu"
+              "WallpaperPicker"
             ];
             workspaces = 9;
           };
@@ -259,8 +262,12 @@ in
               "power-poweroff"
               "power-reboot"
               "power-suspend"
+              "wallpaper"
             ];
-            items = [ "PowerButton" ];
+            items = [
+              "PowerButton"
+              "WallpaperButton"
+            ];
             workspaces = [ ];
           };
         };
@@ -271,7 +278,8 @@ in
           };
           expected = {
             launcher = true;
-            startup = 1;
+            # the shell and the wallpaper daemon
+            startup = 2;
           };
         };
         testFingerprint = {
@@ -330,6 +338,11 @@ in
             grep -q 'PowerMenu {}' $tree/shell.qml
             grep -q 'LockScreen {}' $tree/shell.qml
             grep -q 'PolkitAgent {}' $tree/shell.qml
+            grep -q 'WallpaperPicker {}' $tree/shell.qml
+            test -e $tree/WallpaperButton.qml
+            grep -q 'bin/awww"' $tree/WallpaperPicker.qml
+            grep -q '"--transition-type","grow"' $tree/WallpaperPicker.qml
+            ! grep -q 'WALLPAPER_DIRECTORY\|AWWW_BIN\|TRANSITION_ARGS' $tree/WallpaperPicker.qml
             grep -q 'AuthView' $tree/qmldir
             grep -q 'AuthView {' $tree/LockScreen.qml
             grep -q 'AuthForm {' $tree/PolkitAgent.qml
