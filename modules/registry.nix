@@ -62,16 +62,21 @@ let
           description = "Host specific NixOS modules";
         };
 
+        # Read-only: the provision and host-keys CLIs write these files at
+        # exactly these paths, so a different value would split the two.
         facter = {
 
           reportPath = mkOption {
             type = types.nullOr types.path;
+            readOnly = true;
             default =
               if builtins.pathExists (config.path + "/facter.json") then config.path + "/facter.json" else null;
+            description = "`<path>/facter.json` if it exists (written by `provision facter`).";
           };
 
           report = mkOption {
             type = types.nullOr types.raw;
+            readOnly = true;
             default = if config.facter.reportPath != null then (importJSON config.facter.reportPath) else null;
           };
 
@@ -87,12 +92,15 @@ let
 
           publicKeyFile = mkOption {
             type = types.nullOr types.path;
+            readOnly = true;
             default =
               if builtins.pathExists (config.path + "/host.pub") then config.path + "/host.pub" else null;
+            description = "`<path>/host.pub` if it exists (written by `host-keys generate`).";
           };
 
           publicKey = mkOption {
             type = types.nullOr types.str;
+            readOnly = true;
             default =
               if config.hostkey.publicKeyFile != null then fileContents config.hostkey.publicKeyFile else null;
           };
@@ -194,12 +202,12 @@ in
 
     defaultSshOpts = mkOption {
       type = types.listOf types.str;
-      default = [
-        "-o"
-        "ControlMaster=auto"
-        "-o"
-        "ControlPersist=60"
+      default = [ ];
+      example = [
+        "-p"
+        "2222"
       ];
+      description = "Extra ssh arguments for deploy and host-keys.";
     };
 
     adminKeys = mkOption {

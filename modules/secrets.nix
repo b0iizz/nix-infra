@@ -17,7 +17,7 @@ withInputs
       inputs,
       self,
       ...
-    }:
+    }@top:
     let
       identified = lib.filterAttrs (_: host: host.hostkey.publicKeyFile != null) config.registry.hosts;
     in
@@ -59,8 +59,8 @@ withInputs
             age.rekey = {
               masterIdentities = [
                 {
-                  identity = config.registry.secretsDir + "/master/fido2.age-identity";
-                  pubkey = lib.fileContents (config.registry.secretsDir + "/master/fido2.pub");
+                  identity = top.config.registry.secretsDir + "/master/fido2.age-identity";
+                  pubkey = lib.fileContents (top.config.registry.secretsDir + "/master/fido2.pub");
                 }
               ];
 
@@ -69,8 +69,8 @@ withInputs
               hostPubkey = config.host-context.hostkey.publicKey;
 
               storageMode = "local";
-              localStorageDir = config.registry.secretsDir + "/rekeyed/${config.host-context.hostName}";
-              generatedSecretsDir = config.registry.secretsDir + "/generated";
+              localStorageDir = top.config.registry.secretsDir + "/rekeyed/${config.host-context.hostName}";
+              generatedSecretsDir = top.config.registry.secretsDir + "/generated";
             };
 
             services.openssh = {

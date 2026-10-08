@@ -29,7 +29,7 @@ withInputs
       #   roles = [ "disko-root-impermanence" "disko-raid" ];
       #
       #   disko-layouts.swap.hibernation = true;   # root layouts: swap = RAM
-      #   disko-layouts.swap.size = "8G";          # ...plus 8G on top
+      #   disko-layouts.swap.size = "8GiB";        # ...plus 8 GiB on top
       #   disko-layouts.raid.level = 5;
       #
       # Disks come from `disk-select` and the host's facter report; tune a choice
@@ -48,35 +48,15 @@ withInputs
 
       # --- sizes ------------------------------------------------------------------
       MiB = 1024 * 1024;
-      pow = base: n: lib.foldl' (acc: _: acc * base) 1 (lib.genList (x: x) n);
+      inherit (self.lib) parseSize;
 
-      # Binary like disko and sgdisk read sizes: `8G` is 8 GiB. Ints are bytes.
-      parseBytes =
-        s:
-        if lib.isInt s then
-          s
-        else
-          let
-            m = builtins.match "([0-9]+)[[:space:]]*([KMGT]?)i?B?" s;
-            exp = {
-              "" = 0;
-              K = 1;
-              M = 2;
-              G = 3;
-              T = 4;
-            };
-          in
-          if m == null then
-            throw "disko-layouts: cannot parse size '${s}'; expected e.g. 8G, 512M or bytes"
-          else
-            lib.toInt (lib.elemAt m 0) * pow 1024 exp.${lib.elemAt m 1};
-
-      # Disko wants a size string; whole MiB, rounded up so swap is never short.
+      # Disko wants a size string, which it reads as binary (`8M` is 8 MiB);
+      # whole MiB, rounded up so swap is never short.
       toDiskoSize = bytes: "${toString ((bytes + MiB - 1) / MiB)}M";
 
       # Room the system itself needs on a root disk on top of swap. Only used to
       # rule out disks that are too small; see `disk-select.want.root.minSize`.
-      rootHeadroom = 32 * pow 1024 3;
+      rootHeadroom = 32 * 1024 * MiB;
 
       # A layout's `config`: its claim on a mountpoint always, the rest only while
       # no other layout shares that claim. Two layouts defining the same disk would
@@ -209,10 +189,10 @@ withInputs
               size = mkOption {
                 type = with types; nullOr (either ints.unsigned str);
                 default = null;
-                example = "8G";
+                example = "8GiB";
                 description = ''
                   Swap on the root disk, in addition to hibernation space. Bytes,
-                  or a string such as `8G` (binary, as disko reads sizes).
+                  or a string: `8GiB` (binary) or `8G` (decimal).
                   Root layouts only.
                 '';
               };
@@ -291,7 +271,7 @@ withInputs
                   else
                     ram;
               in
-              hibernation + (if cfg.swap.size == null then 0 else parseBytes cfg.swap.size);
+              hibernation + (if cfg.swap.size == null then 0 else parseSize cfg.swap.size);
 
             assertions =
               lib.mapAttrsToList (mountpoint: claims: {
@@ -388,7 +368,7 @@ withInputs
                 Each boot moves the previous root to `/old_roots/<time>` on the
                 btrfs top level (mount it with `-o subvolid=5`) instead of
                 destroying it, so something forgotten in `/persist` can still be
-                fetched. Roots older than this many days are deleted. 0 deletes
+                fetched. Roots retired more than this many days ago are deleted. 0 deletes
                 the previous root immediately.
               '';
             };
@@ -444,10 +424,13 @@ withInputs
                       "btrfs subvolume delete --recursive /btrfs-top/root"
                     else
                       ''
-                        # Named after when it was last written, i.e. when that boot ended.
+                        # Named and dated after when it was retired (now). The
+                        # root's own mtime is roughly when it was created, so a
+                        # root older than the limit would be deleted at once.
                         mkdir -p /btrfs-top/old_roots
-                        stamp=$(date --date="@$(stat -c %Y /btrfs-top/root)" "+%Y-%m-%d_%H:%M:%S")
+                        stamp=$(date "+%Y-%m-%d_%H:%M:%S")
                         mv /btrfs-top/root "/btrfs-top/old_roots/$stamp"
+                        touch "/btrfs-top/old_roots/$stamp"
                       ''
                   }
                 fi

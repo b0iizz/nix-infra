@@ -27,28 +27,7 @@ in
       disks = facter.disks report;
 
       # --- wants -> ranked candidates ----------------------------------------
-      parseSize =
-        s:
-        if lib.isInt s then
-          s
-        else
-          let
-            m = builtins.match "([0-9]+)[[:space:]]*([KMGT]?)(i?)B?" s;
-            exp = {
-              "" = 0;
-              K = 1;
-              M = 2;
-              G = 3;
-              T = 4;
-            };
-          in
-          if m == null then
-            throw "disk-select: cannot parse size '${s}'; expected e.g. 500G (decimal), 476GiB (binary) or bytes"
-          else
-            lib.toInt (lib.elemAt m 0)
-            * lib.foldl' (a: _: a * (if lib.elemAt m 2 == "i" then 1024 else 1000)) 1 (
-              lib.range 1 exp.${lib.elemAt m 1}
-            );
+      inherit (self.lib) parseSize;
 
       speed = {
         nvme = 0;

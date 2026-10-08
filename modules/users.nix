@@ -86,11 +86,23 @@ let
           description = ''
             Administrator: member of `wheel`. Instead of accepting
             `registry.adminKeys`, an SSH key pair is generated for the user
-            with agenix-rekey (`agenix generate`) and installed as
-            `~/.ssh/id_ed25519` (plus `.pub`) on every host the user lives
-            on that can decrypt secrets. The public key
-            `secrets/generated/user-ssh-<user>.pub` is authorized on top of
-            `sshKeys`. Commit the `.pub` file.
+            with agenix-rekey (`agenix generate`). The public key
+            `secrets/generated/user-ssh-<user>.pub` is authorized for the
+            user and for root (`registry.rootKeys`) on top of `sshKeys`.
+            Commit the `.pub` file. The private key is only installed on
+            the hosts in `keyHosts`.
+          '';
+        };
+
+        keyHosts = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+          example = [ "workstation" ];
+          description = ''
+            Hosts (that can decrypt secrets) where an admin's generated
+            private key is installed as `~/.ssh/id_ed25519` (plus `.pub`).
+            Keep this to the machines you work from: the key opens every
+            host, so each host listed here can reach all the others.
           '';
         };
 
@@ -141,6 +153,8 @@ let
     );
     users = filterAttrs (_: u: u.enable && (u.hosts == null || elem host.hostName u.hosts)) rcfg.users;
   };
+
+  adminNames = attrNames (filterAttrs (_: u: u.enable && u.admin) rcfg.users);
 in
 {
 
@@ -168,6 +182,17 @@ in
         description = "Keys for root in addition to `registry.adminKeys`.";
       };
 
+    };
+
+    rootKeys = mkOption {
+      type = types.listOf types.str;
+      readOnly = true;
+      default = rcfg.adminKeys ++ lib.filter (k: k != null) (map adminPublicKey adminNames);
+      defaultText = "`adminKeys` plus the generated public keys of all admins";
+      description = ''
+        Keys authorized for root on every host and on the installer
+        images. Without any, nothing can log in to a fresh install.
+      '';
     };
 
     userPolicy = {
@@ -283,14 +308,24 @@ in
 
         homeOf = user: config.users.users.${user}.home;
 
-        # Pregenerated identity, installed as ~/.ssh/id_ed25519.
+        # Pregenerated identity, installed as ~/.ssh/id_ed25519 on the user's
+        # `keyHosts`. Every other host only declares it so that
+        # `agenix generate` creates it; it never reaches them.
+        holdsKey = user: elem hostName adminUsers.${user}.keyHosts;
         adminKeySecret = user: {
           ${adminSecretId user} = {
             generator.script = "ssh-ed25519";
-            path = "${homeOf user}/.ssh/id_ed25519";
-            owner = user;
-            mode = "0400";
-          };
+          }
+          // (
+            if holdsKey user then
+              {
+                path = "${homeOf user}/.ssh/id_ed25519";
+                owner = user;
+                mode = "0400";
+              }
+            else
+              { intermediary = true; }
+          );
         };
 
         adminKeyTmpfiles =
@@ -305,8 +340,7 @@ in
           ) "f+ ${homeOf user}/.ssh/id_ed25519.pub 0644 ${user} ${group} - ${pub}";
 
         hashFile = user: config.age.secrets.${secretId "hash" user}.path;
-        passwordFor =
-          user: lib.optionalAttrs (generated ? ${user}) { hashedPasswordFile = hashFile user; };
+        passwordFor = user: lib.optionalAttrs (generated ? ${user}) { hashedPasswordFile = hashFile user; };
       in
       {
         config = {
@@ -342,19 +376,24 @@ in
 
           # Login shells other than bash need their program module for
           # /etc/shells and completion.
-          programs = genAttrs (intersectLists shellNames [
-            "zsh"
-            "fish"
-          ]) (_: {
-            enable = mkDefault true;
-          });
+          programs =
+            genAttrs
+              (intersectLists shellNames [
+                "zsh"
+                "fish"
+              ])
+              (_: {
+                enable = mkDefault true;
+              });
 
           age.secrets = mkMerge (
             map passwordSecrets (attrNames generated)
             ++ lib.optionals canDecrypt (map adminKeySecret (attrNames adminUsers))
           );
 
-          systemd.tmpfiles.rules = lib.concatMap adminKeyTmpfiles (attrNames adminUsers);
+          systemd.tmpfiles.rules = lib.optionals canDecrypt (
+            lib.concatMap adminKeyTmpfiles (lib.filter holdsKey (attrNames adminUsers))
+          );
 
           assertions = [
             {

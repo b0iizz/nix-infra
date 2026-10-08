@@ -6,10 +6,8 @@
 }:
 let
   rcfg = config.registry;
-
-  # The CLI works on the checked-out repository, not on the store copy, so
-  # every path it needs is handed over relative to the flake root.
-  relPath = p: lib.removePrefix (toString self) (toString p);
+  cli = self.lib.cli;
+  inherit (cli) relPath;
 
   hostsData = lib.mapAttrs (_name: host: {
     age = relPath host.hostkey.privateKeyFile;
@@ -31,76 +29,72 @@ let
   );
 in
 {
+  # The CLI reads this live (`nix eval .#hostKeysData`), so a host created
+  # since the last build is known at once.
   flake.hostKeysData = hostsData;
 
   perSystem =
     { config, pkgs, ... }:
     let
-      hostsFile = pkgs.writeText "host-keys-hosts.json" (builtins.toJSON hostsData);
+      # Static host list: only used for tab completion, so staleness is fine.
+      hostNames = pkgs.writeText "host-keys-hosts" (lib.concatStringsSep "\n" (lib.attrNames hostsData));
 
-      completion = pkgs.writeText "host-keys.bash" ''
-        _host_keys() {
-          local cur=''${COMP_WORDS[COMP_CWORD]} prev=''${COMP_WORDS[COMP_CWORD-1]}
-          local cmd=''${COMP_WORDS[1]:-} opts=""
-
-          if [ "$COMP_CWORD" -eq 1 ]; then
-            mapfile -t COMPREPLY < <(compgen -W "list generate rotate deploy verify export show pub fingerprint completion help" -- "$cur")
-            return
-          fi
-          [ "$prev" = --target ] && return
-
-          case $cmd in
-            generate) opts="--all" ;;
-            rotate) opts="--rekey --deploy --local --target --restart-sshd" ;;
-            deploy) opts="--local --target --restart-sshd" ;;
-            verify) opts="--local --target" ;;
-            show) opts="--yes" ;;
-            completion)
-              mapfile -t COMPREPLY < <(compgen -W "bash" -- "$cur")
-              return
-              ;;
-          esac
-
-          if [[ $cur == -* ]]; then
-            mapfile -t COMPREPLY < <(compgen -W "$opts" -- "$cur")
-            return
-          fi
-
-          case $cmd in
-            generate | rotate | deploy | verify | show | pub | fingerprint)
-              mapfile -t COMPREPLY < <(compgen -W "$(host-keys _hosts 2>/dev/null)" -- "$cur")
-              ;;
-            export)
-              if [ "$COMP_CWORD" -eq 2 ]; then
-                mapfile -t COMPREPLY < <(compgen -W "$(host-keys _hosts 2>/dev/null)" -- "$cur")
-              else
-                mapfile -t COMPREPLY < <(compgen -d -- "$cur")
-              fi
-              ;;
-          esac
-        }
-        complete -F _host_keys host-keys
-      '';
-
-      host-keys-script = pkgs.writeShellApplication {
+      host-keys = cli.mkCli pkgs {
         name = "host-keys";
+        dataAttr = "hostKeysData";
         runtimeInputs = [
-          pkgs.nix
           pkgs.rage
           pkgs.age-plugin-fido2-hmac
-          pkgs.openssh
-          pkgs.jq
-          pkgs.git
           pkgs.gawk
-          pkgs.coreutils
           config.agenix-rekey.package
         ];
+
+        completion = ''
+          _host_keys() {
+            local cur=''${COMP_WORDS[COMP_CWORD]} prev=''${COMP_WORDS[COMP_CWORD-1]}
+            local cmd=''${COMP_WORDS[1]:-} opts=""
+
+            if [ "$COMP_CWORD" -eq 1 ]; then
+              mapfile -t COMPREPLY < <(compgen -W "list generate rotate deploy verify export show pub fingerprint completion help" -- "$cur")
+              return
+            fi
+            [ "$prev" = --target ] && return
+
+            case $cmd in
+              generate) opts="--all" ;;
+              rotate) opts="--rekey --deploy --local --target --restart-sshd" ;;
+              deploy) opts="--local --target --restart-sshd" ;;
+              verify) opts="--local --target" ;;
+              show) opts="--yes" ;;
+              completion)
+                mapfile -t COMPREPLY < <(compgen -W "bash" -- "$cur")
+                return
+                ;;
+            esac
+
+            if [[ $cur == -* ]]; then
+              mapfile -t COMPREPLY < <(compgen -W "$opts" -- "$cur")
+              return
+            fi
+
+            case $cmd in
+              generate | rotate | deploy | verify | show | pub | fingerprint)
+                mapfile -t COMPREPLY < <(compgen -W "$(cat ${hostNames})" -- "$cur")
+                ;;
+              export)
+                if [ "$COMP_CWORD" -eq 2 ]; then
+                  mapfile -t COMPREPLY < <(compgen -W "$(cat ${hostNames})" -- "$cur")
+                else
+                  mapfile -t COMPREPLY < <(compgen -d -- "$cur")
+                fi
+                ;;
+            esac
+          }
+          complete -F _host_keys host-keys
+        '';
+
         text = ''
-          # Baked in at build time: only good enough for tab completion.
-          # Commands read the checked-out flake instead (see live_hosts), so
-          # a host created since the last build is known at once.
-          hosts_json=$(<${hostsFile})
-          master_rel=${lib.escapeShellArg masterDir}
+          master_dir=$root${lib.escapeShellArg masterDir}
 
           # Where NixOS (see secrets.nix) expects the host key on the target.
           key_path=/etc/ssh/ssh_host_ed25519_key
@@ -142,24 +136,15 @@ in
           is this machine's hostname, otherwise over ssh to the registry's
           deploy.targetHost.
 
+          deploy only talks to the machine holding the last committed key
+          (git HEAD), so the private key can't go to an impostor. Without a
+          committed key it falls back to accept-new.
+
           Typical rotation:  host-keys rotate <host> --rekey --deploy
           Then deploy the system as usual.
           EOF
           }
 
-          die() { echo "host-keys: $*" >&2; exit 1; }
-          info() { echo "host-keys: $*" >&2; }
-
-          root=''${FLAKE_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
-          master_dir=$root$master_rel
-          export FLAKE_ROOT=$root
-
-          live_hosts() {
-            hosts_json=$(nix eval --json "$root#hostKeysData") ||
-              die "cannot evaluate $root#hostKeysData"
-          }
-
-          field() { jq -r --arg h "$1" --arg k "$2" '.[$h][$k] // empty' <<<"$hosts_json"; }
           age_path() { echo "$root$(field "$1" age)"; }
           pub_path() { echo "$root$(field "$1" pub)"; }
 
@@ -175,15 +160,8 @@ in
               *) echo half ;;
             esac
           }
-          has_key() { [ "$(key_state "$1")" != none ]; }
           die_half() {
             die "$1 has half a key pair ($(age_path "$1"), $(pub_path "$1")). Restore the missing half from git, or delete the other if nothing is encrypted to it yet."
-          }
-
-          need_host() {
-            [ -n "''${1:-}" ] || die "missing <host> argument"
-            jq -e --arg h "$1" 'has($h)' <<<"$hosts_json" >/dev/null ||
-              die "unknown host '$1' (known: $(jq -r 'keys | join(", ")' <<<"$hosts_json"))"
           }
 
           recipient_args=()
@@ -195,17 +173,6 @@ in
             for f in "$master_dir"/*.age-identity; do identity_args+=(-i "$f"); done
             shopt -u nullglob
           }
-
-          # Plaintext only ever lives on a tmpfs when possible, mode 700.
-          tmp=
-          cleanup() {
-            if [ -n "$tmp" ]; then
-              find "$tmp" -type f -exec shred -u {} + 2>/dev/null || true
-              rm -rf "$tmp"
-            fi
-          }
-          trap cleanup EXIT
-          mk_tmp() { tmp=$(mktemp -d -p "''${XDG_RUNTIME_DIR:-/tmp}" host-keys.XXXXXX); }
 
           git_add() { git -C "$root" add -- "$@" 2>/dev/null || true; }
 
@@ -240,6 +207,7 @@ in
             awk '{ print $1, $2 }' "$tmp/key.pub" >"$pub.new"
             mv -f "$age.new" "$age"
             mv -f "$pub.new" "$pub"
+            # Don't keep the plaintext around for the rest of the run.
             cleanup
             tmp=
             # Flakes only see tracked files.
@@ -258,7 +226,7 @@ in
               shift
             done
             if [ $all = 1 ]; then
-              mapfile -t hosts < <(jq -r 'keys[]' <<<"$hosts_json")
+              mapfile -t hosts < <(all_hosts)
               for h in "''${hosts[@]}"; do
                 case $(key_state "$h") in
                   ok) info "$h: already has a key, skipping" ;;
@@ -298,10 +266,7 @@ in
               target=$(field "$h" target)
               [ -n "$target" ] || die "$h: no deploy.targetHost and not this machine; pass --target"
             fi
-            case $target in
-              *@*) dest=$target ;;
-              *) dest="$(field "$h" user)@$target" ;;
-            esac
+            dest=$(to_dest "$(field "$h" user)" "$target")
             mode=ssh
           }
 
@@ -322,8 +287,17 @@ in
             done
           }
 
+          # The key the machine serves now: the last committed host.pub
+          # (during a rotation the working tree already holds the new one).
+          # Writes it to $tmp/<host>.committed.pub; fails if never committed.
+          committed_pub() {
+            local rel
+            rel=$(field "$1" pub)
+            git -C "$root" show "HEAD:''${rel#/}" >"$tmp/$1.committed.pub" 2>/dev/null
+          }
+
           deploy_one() {
-            local h=$1 force_local=$2 target=$3 restart=$4 key pub script opts sudo=
+            local h=$1 force_local=$2 target=$3 restart=$4 key pub script pin="" sudo=""
             resolve_target "$h" "$force_local" "$target"
             pub=$(read_pub "$h")
             key=$(decrypt "$h") # touch the token before any ssh/sudo prompt
@@ -335,11 +309,13 @@ in
               info "$h: installing key locally"
               { echo "$pub"; printf '%s\n' "$key"; } | $sudo sh -c "$script"
             else
-              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$hosts_json")
+              mk_tmp
+              if committed_pub "$h"; then pin=$tmp/$h.committed.pub; fi
+              ssh_setup "$h" "$dest" "$pin"
               if [ "''${dest%@*}" != root ]; then sudo="sudo -n"; fi
               info "$h: installing key on $dest"
               # shellcheck disable=SC2029
-              { echo "$pub"; printf '%s\n' "$key"; } | ssh "''${opts[@]}" "$dest" "$sudo sh -c '$script'"
+              { echo "$pub"; printf '%s\n' "$key"; } | ssh "''${sshopts[@]}" "$dest" "$sudo sh -c '$script'"
             fi
           }
 
@@ -351,6 +327,7 @@ in
             deploy_one "$1" "$force_local" "$target" "$restart"
           }
 
+          # Not pinned: it sends nothing secret and reports a mismatch itself.
           cmd_verify() {
             parse_target_opts "$@"
             set -- "''${rest[@]}"
@@ -361,7 +338,7 @@ in
             if [ "$mode" = local ]; then
               got=$(awk '{ print $2 }' "$key_path.pub")
             else
-              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$hosts_json")
+              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
               # shellcheck disable=SC2029
               got=$(ssh "''${opts[@]}" "$dest" cat "$key_path.pub" | awk '{ print $2 }')
             fi
@@ -418,7 +395,7 @@ in
             if [ $do_deploy = 1 ]; then
               deploy_one "$h" "$force_local" "$target" "$restart"
             else
-              info "$h: not deployed yet; run: host-keys deploy $h"
+              info "$h: not deployed yet; run: host-keys deploy $h (before committing the new key)"
             fi
             [ $do_rekey = 1 ] || info "run 'agenix rekey -a' so secrets are encrypted to the new key"
             info "order matters: key on the host BEFORE the system with rekeyed secrets is switched"
@@ -463,15 +440,17 @@ in
               esac
               target=$(field "$h" target)
               printf '%-24s %-52s %s\n' "$h" "$state" "''${target:-local only}"
-            done < <(jq -r 'keys[]' <<<"$hosts_json")
+            done < <(all_hosts)
           }
 
           [ $# -gt 0 ] || { usage; exit 1; }
           cmd=$1
           shift
+          # Once, here: the helpers run in $(...) subshells, which can't
+          # keep what they load.
           case $cmd in
-            completion | _hosts | help | -h | --help) ;;
-            *) live_hosts ;;
+            completion | help | -h | --help) ;;
+            *) load_data ;;
           esac
           case $cmd in
             list) cmd_list ;;
@@ -483,38 +462,16 @@ in
             show | cat | private) cmd_show "$@" ;;
             pub | public) cmd_pub "$@" ;;
             fingerprint) cmd_fingerprint "$@" ;;
-            completion)
-              [ "''${1:-}" = bash ] || die "completion: only 'bash' is supported"
-              cat ${completion}
-              ;;
-            _hosts) jq -r 'keys[]' <<<"$hosts_json" ;;
+            completion) print_completion "$@" ;;
             help | -h | --help) usage ;;
             *) usage; die "unknown command '$cmd'" ;;
           esac
         '';
       };
-
-      # Also installs the completion where bash-completion looks for it.
-      host-keys = pkgs.symlinkJoin {
-        name = "host-keys";
-        paths = [ host-keys-script ];
-        postBuild = ''
-          install -Dm644 ${completion} $out/share/bash-completion/completions/host-keys
-        '';
-        meta.mainProgram = "host-keys";
-      };
     in
     {
       packages.host-key-cli = host-keys;
-      make-shells.default = {
-        packages = [ host-keys ];
-        # nix develop does not put share/bash-completion on XDG_DATA_DIRS.
-        shellHook = ''
-          if [ -n "''${BASH_VERSION:-}" ] && [[ $- == *i* ]]; then
-            source <(host-keys completion bash)
-          fi
-        '';
-      };
+      make-shells.default = cli.shellFor host-keys;
 
       checks.host-keys = pkgs.runCommand "check-host-keys" { } (
         if halfPaired == [ ] then

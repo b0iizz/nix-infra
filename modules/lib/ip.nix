@@ -83,7 +83,8 @@ let
             h = parseHextets head';
             t = parseHextets tail';
           in
-          if h == null || t == null then
+          # A dotted quad may only end the address, never precede `::`.
+          if h == null || t == null || lib.hasInfix "." head' then
             null
           else
             {
@@ -303,19 +304,12 @@ in
       parseCidr
       formatCidr
       networkOf
-      addOffset
       hostBits
       contains
       hostAddress
       hostCidr
       formatEndpoint
-      maskWords
       ;
-    inherit tryParse tryParseCidr;
-    isIP = s: tryParse s != null;
-    isIPv4 = s: (tryParseIPv4 s) != null;
-    isIPv6 = s: (tryParseIPv6 s) != null;
-    isCidr = s: tryParseCidr s != null;
     types = mkTypes;
   };
 }

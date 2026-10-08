@@ -347,7 +347,21 @@ let
               net.hub == null;
           msg = "`hub` must name a member for hub-and-spoke networks and be unset for meshes";
         }
+        {
+          cond = net.topology != "hub-and-spoke" || net.members.${net.hub}.endpoint != null;
+          msg = "the hub ${toString net.hub} needs an `endpoint`, or no spoke can reach it";
+        }
+        {
+          # Explicit `ipv4`/`ipv6` addresses don't reserve their index.
+          cond = length (unique addresses) == length addresses;
+          msg = "two members have the same address: ${
+            toString (unique (filter (a: lib.count (b: b == a) addresses > 1) addresses))
+          }";
+        }
       ];
+
+      members = mapAttrs resolveMember net.members;
+      addresses = concatMap (m: m.hostRoutes) (attrValues members);
 
       resolveMember =
         host: m:
@@ -412,7 +426,7 @@ let
       prefixes = map (c: ip.formatCidr (ip.networkOf c)) prefixes;
       hasIPv4 = net.ipv4 != null;
       hasIPv6 = net.ipv6 != null;
-      members = mapAttrs resolveMember net.members;
+      inherit members;
     } checks;
 
   resolved = mapAttrs resolveNetwork cfg.networks;

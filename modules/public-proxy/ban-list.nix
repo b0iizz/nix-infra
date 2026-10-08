@@ -10,11 +10,13 @@
 {
   options.publicProxy.banList.enable = lib.mkOption {
     type = lib.types.bool;
-    default = true;
+    default = false;
     description = ''
       nftables sets `inet public-proxy banned4`/`banned6` on gateways;
       traffic from addresses in them is dropped. Enables the nftables
-      firewall.
+      firewall. Nothing here fills the sets, and they are emptied whenever
+      the firewall reloads (every deploy), so whatever fills them (e.g.
+      fail2ban) has to re-apply its bans.
     '';
   };
 

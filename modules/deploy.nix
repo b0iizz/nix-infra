@@ -6,14 +6,11 @@
 }:
 let
   rcfg = config.registry;
-
-  # The CLI works on the checked-out repository, not on the store copy.
-  relPath = p: lib.removePrefix (toString self) (toString p);
+  cli = self.lib.cli;
 
   hostsData = lib.mapAttrs (_name: host: {
     # Committed ssh host public key; deploys pin it when present.
-    pub = relPath (host.path + "/host.pub");
-    hasPub = builtins.pathExists (host.path + "/host.pub");
+    pub = cli.relPath (host.path + "/host.pub");
     target = host.deploy.targetHost;
     user = host.deploy.targetUser;
     sshOpts = host.deploy.sshOpts;
@@ -38,51 +35,48 @@ in
         )
       );
 
-      completion = pkgs.writeText "deploy.bash" ''
-        _deploy() {
-          local cur=''${COMP_WORDS[COMP_CWORD]} prev=''${COMP_WORDS[COMP_CWORD-1]}
-          local cmd=''${COMP_WORDS[1]:-} opts=""
-
-          if [ "$COMP_CWORD" -eq 1 ]; then
-            mapfile -t COMPREPLY < <(compgen -W "list build plan switch boot test dry-activate completion help" -- "$cur")
-            return
-          fi
-          [ "$prev" = --target ] || [ "$prev" = -j ] && return
-
-          case $cmd in
-            build | plan | switch | boot | test | dry-activate)
-              opts="--all --local --target --build-on-target --build-local --keep-going -j" ;;
-            completion)
-              mapfile -t COMPREPLY < <(compgen -W "bash" -- "$cur")
-              return
-              ;;
-          esac
-
-          if [[ $cur == -* ]]; then
-            mapfile -t COMPREPLY < <(compgen -W "$opts" -- "$cur")
-            return
-          fi
-
-          case $cmd in
-            build | plan | switch | boot | test | dry-activate)
-              mapfile -t COMPREPLY < <(compgen -W "$(cat ${hostNames}) $(cat ${groupNames})" -- "$cur")
-              ;;
-          esac
-        }
-        complete -F _deploy deploy
-      '';
-
-      deploy-script = pkgs.writeShellApplication {
+      deploy = cli.mkCli pkgs {
         name = "deploy";
+        dataAttr = "deployData";
         runtimeInputs = [
           pkgs.nixos-rebuild
-          pkgs.nix
-          pkgs.openssh
-          pkgs.jq
-          pkgs.gitMinimal
-          pkgs.coreutils
           pkgs.util-linux
         ];
+
+        completion = ''
+          _deploy() {
+            local cur=''${COMP_WORDS[COMP_CWORD]} prev=''${COMP_WORDS[COMP_CWORD-1]}
+            local cmd=''${COMP_WORDS[1]:-} opts=""
+
+            if [ "$COMP_CWORD" -eq 1 ]; then
+              mapfile -t COMPREPLY < <(compgen -W "list build plan switch boot test dry-activate completion help" -- "$cur")
+              return
+            fi
+            [ "$prev" = --target ] || [ "$prev" = -j ] && return
+
+            case $cmd in
+              build | plan | switch | boot | test | dry-activate)
+                opts="--all --local --target --build-on-target --build-local --keep-going -j" ;;
+              completion)
+                mapfile -t COMPREPLY < <(compgen -W "bash" -- "$cur")
+                return
+                ;;
+            esac
+
+            if [[ $cur == -* ]]; then
+              mapfile -t COMPREPLY < <(compgen -W "$opts" -- "$cur")
+              return
+            fi
+
+            case $cmd in
+              build | plan | switch | boot | test | dry-activate)
+                mapfile -t COMPREPLY < <(compgen -W "$(cat ${hostNames}) $(cat ${groupNames})" -- "$cur")
+                ;;
+            esac
+          }
+          complete -F _deploy deploy
+        '';
+
         text = ''
           usage() {
             cat <<'EOF'
@@ -135,24 +129,10 @@ in
           EOF
           }
 
-          die() { echo "deploy: $*" >&2; exit 1; }
-          info() { echo "deploy: $*" >&2; }
-
-          root=''${FLAKE_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
-          export FLAKE_ROOT=$root
-
-          data=
-          load_data() {
-            [ -n "$data" ] || data=$(nix eval --json "$root#deployData") ||
-              die "cannot evaluate $root#deployData"
-          }
-          field() { load_data; jq -r --arg h "$1" --arg k "$2" '.[$h][$k] // empty' <<<"$data"; }
-          all_hosts() { load_data; jq -r 'keys[]' <<<"$data"; }
           group_hosts() {
             load_data
             jq -r --arg g "$1" 'to_entries[] | select(.value.groups | index($g)) | .key' <<<"$data"
           }
-          is_host() { load_data; jq -e --arg h "$1" 'has($h)' <<<"$data" >/dev/null; }
 
           # -- selection ---------------------------------------------------
 
@@ -205,8 +185,7 @@ in
                   add_hosts "''${members[@]}"
                   ;;
                 *)
-                  is_host "$a" ||
-                    die "unknown host '$a' (known: $(jq -r 'keys | join(", ")' <<<"$data"))"
+                  need_host "$a"
                   add_hosts "$a"
                   ;;
               esac
@@ -229,37 +208,13 @@ in
               t=$(field "$h" target)
               [ -n "$t" ] || return 0
             fi
-            case $t in
-              *@*) dest=$t ;;
-              *) dest="$(field "$h" user)@$t" ;;
-            esac
+            dest=$(to_dest "$(field "$h" user)" "$t")
           }
 
           # nixos-rebuild-ng renamed --use-remote-sudo to --sudo. Ask rather
           # than guess: both spellings are in the wild.
           sudo_flag=--use-remote-sudo
           if nixos-rebuild --help 2>&1 | grep -q -- '--sudo'; then sudo_flag=--sudo; fi
-
-          # Sets $sshopts (array) and exports NIX_SSHOPTS for the host in
-          # $dest. With a committed host.pub, ssh trusts exactly that key.
-          # A known_hosts line is `<host> <type> <key>`: host.pub's trailing
-          # comment must go, ssh would read it as a marker and ignore the line.
-          sshopts=()
-          ssh_setup() {
-            local h=$1 pubfile kh type key
-            mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
-            pubfile=$root$(field "$h" pub)
-            if [ "$(field "$h" hasPub)" = true ] && [ -f "$pubfile" ]; then
-              kh=$tmp/$h.known_hosts
-              read -r type key _ <"$pubfile"
-              echo "''${dest#*@} $type $key" >"$kh"
-              sshopts+=(-o "UserKnownHostsFile=$kh" -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes)
-            else
-              info "$h: no committed host key; falling back to accept-new"
-              sshopts+=(-o StrictHostKeyChecking=accept-new)
-            fi
-            export NIX_SSHOPTS="''${sshopts[*]}"
-          }
 
           # Everything per-host runs in a subshell, so it can run in parallel.
           deploy_one() {
@@ -286,7 +241,7 @@ in
               return
             fi
 
-            ssh_setup "$h"
+            ssh_setup "$h" "$dest" "$root$(field "$h" pub)"
             flags+=(--target-host "$dest")
             [ "''${dest%@*}" = root ] || flags+=("$sudo_flag")
 
@@ -311,7 +266,7 @@ in
             if [ -z "$dest" ]; then
               cur=/run/current-system
             else
-              ssh_setup "$h"
+              ssh_setup "$h" "$dest" "$root$(field "$h" pub)"
               cur=$(ssh "''${sshopts[@]}" "$dest" readlink -f /run/current-system) ||
                 die "$h: cannot read the running system over ssh"
               nix copy --no-check-sigs --from "ssh://$dest" "$cur" 2>/dev/null ||
@@ -325,9 +280,6 @@ in
           }
 
           # -- run ---------------------------------------------------------
-
-          tmp=
-          trap '[ -z "$tmp" ] || rm -rf "$tmp"' EXIT
 
           # Runs one host in a subshell with errexit really on (it is ignored
           # inside `if`/`||`), and leaves a marker the parallel mode can find.
@@ -345,7 +297,8 @@ in
             local action=$1 fn=deploy_one h running=0 failed=() ok=()
             [ "$action" != plan ] || fn=plan_one
             load_data
-            tmp=$(mktemp -d -p "''${XDG_RUNTIME_DIR:-/tmp}" deploy.XXXXXX)
+            # Before the subshells, so they share it and the exit trap removes it.
+            mk_tmp
 
             if [ "$jobs" -eq 1 ]; then
               for h in "''${hosts[@]}"; do
@@ -396,34 +349,15 @@ in
               parse_args "$@"
               run_all "$cmd"
               ;;
-            completion)
-              [ "''${1:-}" = bash ] || die "usage: deploy completion bash"
-              cat ${completion}
-              ;;
+            completion) print_completion "$@" ;;
             help | -h | --help) usage ;;
             *) usage >&2; die "unknown command '$cmd'" ;;
           esac
         '';
       };
-
-      deploy = pkgs.symlinkJoin {
-        name = "deploy";
-        paths = [ deploy-script ];
-        postBuild = ''
-          install -Dm644 ${completion} $out/share/bash-completion/completions/deploy
-        '';
-        meta.mainProgram = "deploy";
-      };
     in
     {
       packages.deploy-cli = deploy;
-      make-shells.default = {
-        packages = [ deploy ];
-        shellHook = ''
-          if [ -n "''${BASH_VERSION:-}" ] && [[ $- == *i* ]]; then
-            source <(deploy completion bash)
-          fi
-        '';
-      };
+      make-shells.default = cli.shellFor deploy;
     };
 }

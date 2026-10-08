@@ -21,9 +21,8 @@ withInputs
     let
       rcfg = config.registry;
 
-      # The CLI works on the checked-out repository, not on the store copy, so
-      # every path it needs is handed over relative to the flake root.
-      relPath = p: lib.removePrefix (toString self) (toString p);
+      cli = self.lib.cli;
+      inherit (cli) relPath;
 
       hostsData = lib.mapAttrs (_name: host: {
         age = relPath host.hostkey.privateKeyFile;
@@ -54,7 +53,7 @@ withInputs
           # Static host list: only used for tab completion, so staleness is fine.
           hostNames = pkgs.writeText "provision-hosts" (lib.concatStringsSep "\n" (lib.attrNames hostsData));
 
-          completion = pkgs.writeText "provision.bash" ''
+          completion = ''
             _provision() {
               local cur=''${COMP_WORDS[COMP_CWORD]} prev=''${COMP_WORDS[COMP_CWORD-1]}
               local cmd=''${COMP_WORDS[1]:-} opts=""
@@ -89,17 +88,14 @@ withInputs
             complete -F _provision provision
           '';
 
-          provision-script = pkgs.writeShellApplication {
+          provision = cli.mkCli pkgs {
             name = "provision";
+            dataAttr = "provisionData";
             runtimeInputs = [
               nixos-anywhere
               disko
-              pkgs.nix
-              pkgs.openssh
-              pkgs.jq
-              pkgs.gitMinimal
-              pkgs.coreutils
             ];
+            inherit completion;
             text = ''
               hosts_dir=modules/hosts
 
@@ -146,37 +142,8 @@ withInputs
               EOF
               }
 
-              die() { echo "provision: $*" >&2; exit 1; }
-              info() { echo "provision: $*" >&2; }
-
-              root=''${FLAKE_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
-
-              # Always the current flake, so hosts made by `new` are seen at once.
-              export FLAKE_ROOT=$root
-              data=
-              load_data() {
-                [ -n "$data" ] || data=$(nix eval --json "$root#provisionData") ||
-                  die "cannot evaluate $root#provisionData"
-              }
-              field() { load_data; jq -r --arg h "$1" --arg k "$2" '.[$h][$k] // empty' <<<"$data"; }
-              is_host() { load_data; jq -e --arg h "$1" 'has($h)' <<<"$data" >/dev/null; }
-              need_host() {
-                [ -n "''${1:-}" ] || die "missing <host> argument"
-                is_host "$1" || die "unknown host '$1' (known: $(jq -r 'keys | join(", ")' <<<"$data"); create it with: provision new $1)"
-              }
-
-              # Always the current flake too, not the copy baked into this tool.
+              # Always the current flake, not the copy baked into this tool.
               host_keys() { nix run "$root#host-key-cli" -- "$@"; }
-
-              tmp=
-              cleanup() {
-                if [ -n "$tmp" ]; then
-                  find "$tmp" -type f -exec shred -u {} + 2>/dev/null || true
-                  rm -rf "$tmp"
-                fi
-              }
-              trap cleanup EXIT
-              mk_tmp() { tmp=$(mktemp -d -p "''${XDG_RUNTIME_DIR:-/tmp}" provision.XXXXXX); }
 
               # -- target ------------------------------------------------------
 
@@ -208,14 +175,9 @@ withInputs
                 fi
                 [ -n "$target" ] || target=$(field "$h" target)
                 [ -n "$target" ] || die "$h: no provision.targetHost in the registry; pass --target or --local"
-                case $target in
-                  *@*) dest=$target ;;
-                  *) dest="$(field "$h" user)@$target" ;;
-                esac
+                dest=$(to_dest "$(field "$h" user)" "$target")
                 mode=remote
               }
-
-              # -- facter ------------------------------------------------------
 
               # -- installer ---------------------------------------------------
 
@@ -350,6 +312,7 @@ withInputs
 
                 if [ "$facter" = 1 ] && [ -n "$target" ]; then
                   data="" # re-read, now including the new host
+                  load_data
                   resolve "$h"
                   collect_facter "$h" "$dir/facter.json"
                 elif [ "$facter" = 1 ]; then
@@ -492,36 +455,16 @@ withInputs
                 plan) cmd_plan "$@" ;;
                 commit) cmd_commit "$@" ;;
                 mount) cmd_mount "$@" ;;
-                completion)
-                  [ "''${1:-}" = bash ] || die "completion: only 'bash' is supported"
-                  cat ${completion}
-                  ;;
+                completion) print_completion "$@" ;;
                 help | -h | --help) usage ;;
                 *) usage; die "unknown command '$cmd'" ;;
               esac
             '';
           };
-
-          # Also installs the completion where bash-completion looks for it.
-          provision = pkgs.symlinkJoin {
-            name = "provision";
-            paths = [ provision-script ];
-            postBuild = ''
-              install -Dm644 ${completion} $out/share/bash-completion/completions/provision
-            '';
-            meta.mainProgram = "provision";
-          };
         in
         {
           packages.provision-cli = provision;
-          make-shells.default = {
-            packages = [ provision ];
-            shellHook = ''
-              if [ -n "''${BASH_VERSION:-}" ] && [[ $- == *i* ]]; then
-                source <(provision completion bash)
-              fi
-            '';
-          };
+          make-shells.default = cli.shellFor provision;
         };
     }
   )

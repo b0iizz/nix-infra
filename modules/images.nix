@@ -23,15 +23,20 @@ withInputs
       ...
     }:
     let
-      # Both images log in as root with the registry's admin keys, carry
+      # Both images log in as root with the registry's root keys, carry
       # nixos-facter, and mark themselves with /etc/provision-installer so the
       # provision CLI can tell "already in an installer" from "a real system".
+      # Without a key, a kexec'd machine would be unreachable until rebooted.
       installerBase =
         kind: facter:
         { lib, ... }:
         {
           services.openssh.enable = lib.mkDefault true;
-          users.users.root.openssh.authorizedKeys.keys = config.registry.adminKeys;
+          users.users.root.openssh.authorizedKeys.keys =
+            if config.registry.rootKeys != [ ] then
+              config.registry.rootKeys
+            else
+              throw "installer images: no key could log in; set `registry.adminKeys` or generate an admin's key (`agenix generate`)";
           environment.systemPackages = [ facter ];
           environment.etc."provision-installer".text = kind;
           nix.settings.experimental-features = [

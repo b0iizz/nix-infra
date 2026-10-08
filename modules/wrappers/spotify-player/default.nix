@@ -20,13 +20,13 @@
 let
   w = self.lib.wrappers;
 
-  defaultApp = fromTOML (builtins.readFile ./spotify-player/app.toml);
+  defaultApp = fromTOML (builtins.readFile ./app.toml);
 
   # spotify-player merges the user keymap over its built-in one, which is what
   # keymap.toml lists. It is only needed to unbind keys.
   builtinKeymap = lib.listToAttrs (
     map (k: lib.nameValuePair k.key_sequence k.command) (
-      (fromTOML (builtins.readFile ./spotify-player/keymap.toml)).keymaps
+      (fromTOML (builtins.readFile ./keymap.toml)).keymaps
     )
   );
 

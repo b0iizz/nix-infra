@@ -36,7 +36,13 @@ let
       networking.hostName = host.hostName;
       nixpkgs.hostPlatform = host.system;
       system.stateVersion = host.stateVersion;
-      users.users.root.openssh.authorizedKeys.keys = config.registry.adminKeys;
+      users.users.root.openssh.authorizedKeys.keys = config.registry.rootKeys;
+      assertions = [
+        {
+          assertion = config.registry.rootKeys != [ ];
+          message = "no key can log in as root: set `registry.adminKeys` or generate an admin's key (`agenix generate`)";
+        }
+      ];
     };
   };
 
