@@ -477,6 +477,16 @@ in
       };
     };
 
+    resolved = mkOption {
+      type = types.raw;
+      readOnly = true;
+      default = resolved;
+      description = ''
+        Resolved networks, including the addresses of every member. For
+        modules that need to know where another host is reachable.
+      '';
+    };
+
     links = mkOption {
       type = types.attrsOf linkType;
       default = { };
