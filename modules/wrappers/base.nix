@@ -8,8 +8,8 @@
 #
 # `perSystem.wrapperExtensions` is one more list, applied to *every* wrapper
 # before its own extensions. It carries the features that give wrappers their
-# helper settings (`passthru.files`, `passthru.reload`, ... see files.nix and
-# activation.nix), each contributing at its own `mkOrder`; add your own the
+# helper settings (`passthru.files`, `passthru.path`, see files.nix),
+# each contributing at its own `mkOrder`; add your own the
 # same way. Because they run first, a wrapper can override anything they set.
 # Extensions can read `final.passthru.wrapperName`; derive from other settings
 # with the `final:` form, which sees the finished wrapper wherever it sits.

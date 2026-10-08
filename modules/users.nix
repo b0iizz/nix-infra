@@ -187,7 +187,7 @@ in
     rootKeys = mkOption {
       type = types.listOf types.str;
       readOnly = true;
-      default = rcfg.adminKeys ++ lib.filter (k: k != null) (map adminPublicKey adminNames);
+      default = rcfg.adminKeys ++ lib.remove null (map adminPublicKey adminNames);
       defaultText = "`adminKeys` plus the generated public keys of all admins";
       description = ''
         Keys authorized for root on every host and on the installer

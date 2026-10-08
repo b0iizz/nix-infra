@@ -17,10 +17,12 @@
 #   desktop.components.<Name> a QML file other components use (AuthForm, ...),
 #                             part of the tree but not instantiated
 #   desktop.fingerprint       fingerprint login for lock screen, greeter and polkit
-#   desktop.launcher.entries  { name, exec (argv), icon }  launcher entries for
+#   desktop.launcher.entries  { name, exec (argv), confirm }  launcher entries for
 #                             what has no .desktop file; applications don't
 #                             register, the launcher finds their entries
-#   desktop.power.actions     { name, exec (argv), order }  shut down, log out, ...
+#   desktop.power.actions     { name, exec (argv), order, confirm }  shut down, log out, ...
+#   desktop.data              values for the shell's QML (ShellData.<name>)
+#   desktop.lock.command      argv that locks the screen, if there is a lock screen
 #   desktop.session           argv that starts the graphical session (for a greeter)
 #   desktop.startup         commands the compositor starts with the session
 #   desktop.launcherCommand   command that toggles the launcher, if there is one
@@ -32,6 +34,12 @@
 }:
 let
   inherit (lib) mkOption types;
+
+  confirmOption = mkOption {
+    type = types.bool;
+    default = false;
+    description = "Ask for a second Enter or click before running (for what loses unsaved work).";
+  };
 in
 {
   flake.modules.nixos.desktop = {
@@ -113,6 +121,7 @@ in
                 type = types.int;
                 default = 100;
               };
+              confirm = confirmOption;
             };
           }
         );
@@ -125,14 +134,26 @@ in
             options = {
               name = mkOption { type = types.str; };
               exec = mkOption { type = types.listOf types.str; };
-              icon = mkOption {
-                type = types.nullOr types.str;
-                default = null;
-              };
+              confirm = confirmOption;
             };
           }
         );
         default = { };
+      };
+
+      data = mkOption {
+        type = types.attrsOf types.raw;
+        default = { };
+        description = ''
+          JSON-able values for the shell's QML, read there as `ShellData.<name>`.
+          The way a module hands a setting to a QML file it contributes.
+        '';
+      };
+
+      lock.command = mkOption {
+        type = types.nullOr (types.listOf types.str);
+        default = null;
+        description = "Command that locks the screen, set by the lock screen.";
       };
 
       startup = mkOption {
@@ -333,27 +354,25 @@ in
             tree=${(quickshellPackage full).passthru.config.dir}
             test -e $tree/Workspaces.qml
             test -e $tree/PowerButton.qml
-            grep -q '"Log out"' $tree/PowerMenu.qml
-            ! grep -q ACTIONS_JSON $tree/PowerMenu.qml
+            grep -q '"Log out"' $tree/ShellData.qml
             grep -q 'PowerMenu {}' $tree/shell.qml
             grep -q 'LockScreen {}' $tree/shell.qml
             grep -q 'PolkitAgent {}' $tree/shell.qml
             grep -q 'WallpaperPicker {}' $tree/shell.qml
             test -e $tree/WallpaperButton.qml
-            grep -q 'bin/awww"' $tree/WallpaperPicker.qml
-            grep -q '"--transition-type","grow"' $tree/WallpaperPicker.qml
-            ! grep -q 'WALLPAPER_DIRECTORY\|AWWW_BIN\|TRANSITION_ARGS' $tree/WallpaperPicker.qml
+            grep -q 'bin/awww"' $tree/ShellData.qml
+            grep -q '"--transition-type","grow"' $tree/ShellData.qml
 
             # everything started with the session exists
             ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") full.desktop.startup}
 
             # the picker offers the fetched collection, and the default is in it
-            grep -qF '${full.desktop.wallpaper.directory}' $tree/WallpaperPicker.qml
+            grep -qF '${full.desktop.wallpaper.directory}' $tree/ShellData.qml
             test -e '${full.desktop.wallpaper.default}'
             grep -q 'AuthView' $tree/qmldir
             grep -q 'AuthView {' $tree/LockScreen.qml
             grep -q 'AuthForm {' $tree/PolkitAgent.qml
-            ! grep -q FINGERPRINT $tree/LockScreen.qml $tree/PolkitAgent.qml
+            grep -q 'fingerprint' $tree/ShellData.qml
 
             # the greeter gets the users and the compositor's start command
             greeter=${lib.last (lib.splitString " " withGreeter.services.greetd.settings.default_session.command)}

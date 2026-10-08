@@ -21,6 +21,7 @@ FloatingWindow {
     property bool echo: false
 
     function begin(name) {
+        restart.stop();
         user = name;
         message = "";
         isError = false;
@@ -44,13 +45,22 @@ FloatingWindow {
         }
 
         function onAuthFailure(text) {
-            window.begin(window.user);
             window.failed = true;
+            window.inputEnabled = false;
+            // not at once: a PAM error that returns immediately would spin
+            restart.start();
         }
 
         function onReadyToLaunch() {
             Greetd.launch(GreeterData.session, ["XDG_SESSION_TYPE=wayland"]);
         }
+    }
+
+    Timer {
+        id: restart
+
+        interval: 1000
+        onTriggered: window.begin(window.user)
     }
 
     AuthView {

@@ -13,6 +13,7 @@
 #   settings.launcherEntries  <name> -> { name, exec, icon }: what the launcher
 #                             offers besides the desktop entries it finds
 #                             itself (Quickshell's DesktopEntries)
+#   settings.data             <name> -> JSON-able value, read as `ShellData.<name>`
 #
 # On a host the quickshell role fills these from `desktop.*`
 # (modules/desktop.nix); the bare wrapper has an empty bar.
@@ -80,6 +81,7 @@ let
         overlays = _: { };
         components = _: { };
         launcherEntries = _: { };
+        data = _: { };
       };
     }
     (
@@ -100,10 +102,13 @@ let
           p: lib.concatMapStringsSep "\n" (i: "${i.name} {}") (lib.filter (i: i.position == p) items);
 
         shellData = qml.singleton (
-          lib.concatStringsSep "\n" [
-            (qml.property "var" "workspaces" (builtins.toJSON s.workspaces))
-            (qml.property "var" "launcherEntries" (builtins.toJSON (lib.attrValues s.launcherEntries)))
-          ]
+          lib.concatStringsSep "\n" (
+            [
+              (qml.property "var" "workspaces" (builtins.toJSON s.workspaces))
+              (qml.property "var" "launcherEntries" (builtins.toJSON (lib.attrValues s.launcherEntries)))
+            ]
+            ++ lib.mapAttrsToList (n: v: qml.property "var" n (builtins.toJSON v)) s.data
+          )
         );
 
         bar = ''
@@ -230,6 +235,7 @@ in
             overlays = _: config.desktop.overlays;
             components = _: config.desktop.components;
             launcherEntries = _: config.desktop.launcher.entries;
+            data = _: config.desktop.data;
           };
         }
         # file names cannot come from the settings, see modules/wrappers/files.nix

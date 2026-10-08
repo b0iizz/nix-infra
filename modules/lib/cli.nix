@@ -63,14 +63,16 @@ let
       # file's trailing comment must go, ssh would read it as a marker.
       sshopts=()
       ssh_setup() {
-        local h=$1 dest=$2 pubfile=''${3:-} kh type key
+        local h=$1 pubfile=''${3:-} kh type key
         mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
         if [ -n "$pubfile" ] && [ -f "$pubfile" ]; then
           mk_tmp
           kh=$tmp/$h.known_hosts
           read -r type key _ <"$pubfile"
-          echo "''${dest#*@} $type $key" >"$kh"
-          sshopts+=(-o "UserKnownHostsFile=$kh" -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes)
+          # HostKeyAlias: the line matches whatever address, port or ssh
+          # config alias the target is reached by.
+          echo "$h $type $key" >"$kh"
+          sshopts+=(-o "UserKnownHostsFile=$kh" -o "HostKeyAlias=$h" -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes)
         else
           info "$h: no committed host key; falling back to accept-new"
           sshopts+=(-o StrictHostKeyChecking=accept-new)

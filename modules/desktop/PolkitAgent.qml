@@ -1,6 +1,6 @@
 // Polkit agent: shows a dialog whenever a program asks for authorization. The
 // form is the one of the lock and login screen (AuthForm). Polkit's own helper
-// talks to PAM; FINGERPRINT is replaced in modules/desktop/polkit.nix.
+// talks to PAM.
 import QtQuick
 import Quickshell
 import Quickshell.Services.Polkit
@@ -9,7 +9,7 @@ import Quickshell.Wayland
 Scope {
     id: root
 
-    readonly property bool fingerprint: FINGERPRINT
+    readonly property bool fingerprint: ShellData.fingerprint
 
     function names(identities) {
         const out = [];

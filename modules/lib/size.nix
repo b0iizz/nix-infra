@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, self, ... }:
 let
   # Bytes from an int (as is) or a string: `500G` is decimal, as disks are
   # sold (500 * 1000^3), `476GiB` binary (476 * 1024^3). `B` is optional.
@@ -21,7 +21,7 @@ let
       if m == null then
         throw "cannot parse size '${s}'; expected e.g. 500G (decimal), 476GiB (binary) or bytes"
       else
-        lib.toInt (lib.elemAt m 0) * lib.foldl' (a: _: a * base) 1 (lib.range 1 exp.${lib.elemAt m 1});
+        lib.toInt (lib.elemAt m 0) * self.lib.pow base exp.${lib.elemAt m 1};
 in
 {
   flake.lib.parseSize = parseSize;

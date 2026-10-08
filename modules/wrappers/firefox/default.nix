@@ -84,7 +84,7 @@ let
       passthru.settings = {
         policies = _: {
           DisableAppUpdate = true;
-          ExtensionUpdate = false;
+          ExtensionUpdate = true;
 
           # Passwords live in Bitwarden
           AutofillAddressEnabled = false;
@@ -185,12 +185,6 @@ let
             Locked = true;
           };
 
-          # Popups are not blocked, and that is locked. Is that wanted?
-          PopupBlocking = {
-            Default = false;
-            Locked = true;
-          };
-
           RequestedLocales = [
             "de"
             "en-US"
@@ -281,7 +275,7 @@ in
   # Opt-in per host (`roles = [ "librewolf" ]`), not part of `base`.
   flake.modules.nixos.librewolf =
     { pkgs, ... }:
-    w.collect [ self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf ];
+    { environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf ]; };
 
   # Firefox reads /etc/firefox/policies/policies.json *instead of* the one next
   # to the binary whenever it exists, and `programs.firefox` always writes it.

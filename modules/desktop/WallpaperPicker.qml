@@ -1,7 +1,6 @@
 // Wallpaper widget: `quickshell ipc call wallpaper toggle` opens a grid of the
 // images in the wallpaper directory, a click hands one to awww (with the
-// transition of `desktop.wallpaper.transition`), Escape closes it. The
-// placeholders are replaced in modules/desktop/wallpaper.nix.
+// transition of `desktop.wallpaper.transition`), Escape closes it.
 import QtQuick
 import Qt.labs.folderlistmodel
 import Quickshell
@@ -11,13 +10,18 @@ import Quickshell.Wayland
 Scope {
     id: root
 
-    readonly property string directory: WALLPAPER_DIRECTORY
-    readonly property string awww: AWWW_BIN
-    readonly property var transition: TRANSITION_ARGS
+    readonly property string directory: ShellData.wallpaper.directory
+    readonly property string awww: ShellData.wallpaper.awww
+    readonly property var transition: ShellData.wallpaper.transition
     property bool shown: false
 
     function expand(path) {
         return path.startsWith("~") ? Quickshell.env("HOME") + path.slice(1) : path;
+    }
+
+    // a path with # or ? or % in it is not a URL as it stands
+    function fileUrl(path) {
+        return "file://" + encodeURI(path).replace(/#/g, "%23").replace(/\?/g, "%3F");
     }
 
     function set(file) {
@@ -56,7 +60,7 @@ Scope {
                 Keys.onEscapePressed: root.shown = false
 
                 model: FolderListModel {
-                    folder: "file://" + root.expand(root.directory)
+                    folder: root.fileUrl(root.expand(root.directory))
                     nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp"]
                     showDirs: false
                 }

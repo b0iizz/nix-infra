@@ -67,7 +67,8 @@ withInputs
               case $cmd in
                 new) opts="--target --roles --no-facter" ;;
                 facter) opts="--local --target" ;;
-                plan | commit) opts="--local --target" ;;
+                plan) opts="--local --target" ;;
+                commit) opts="--local --target --yes --no-pin" ;;
                 completion)
                   mapfile -t COMPREPLY < <(compgen -W "bash" -- "$cur")
                   return
@@ -122,6 +123,14 @@ withInputs
                     --target [user@]addr       ssh there (installer or any Linux)
                     --local                    this machine, booted from a NixOS
                                                installer (disko + nixos-install)
+                    --yes                      do not ask for confirmation
+                    --no-pin                   do not pin the target's ssh host
+                                               key (if kexec changes it)
+
+                commit asks you to type the host name, checks that the planned
+                disks exist on the target, and pins the ssh host key the target
+                presents (compare its fingerprint with the installer's console)
+                before the host's private key is sent.
                 mount <host>                 Rescue: mount this machine's disks at /mnt
                                              without formatting
                 completion bash              source <(provision completion bash)
@@ -152,12 +161,16 @@ withInputs
               dest=
               force_local=0
               target=
+              yes=0
+              no_pin=0
               rest=()
               parse_opts() {
-                force_local=0 target="" rest=()
+                force_local=0 target="" yes=0 no_pin=0 rest=()
                 while [ $# -gt 0 ]; do
                   case $1 in
                     --local) force_local=1 ;;
+                    --yes) yes=1 ;;
+                    --no-pin) no_pin=1 ;;
                     --target) target=''${2:?--target needs a value}; shift ;;
                     --) shift; rest+=("--" "$@"); break ;;
                     *) rest+=("$1") ;;
@@ -286,7 +299,10 @@ withInputs
                 parse_opts "''${args[@]}"
                 local addr=$target role_list="" r
                 IFS=, read -ra rs <<<"$roles"
-                for r in "''${rs[@]}"; do role_list="$role_list \"$r\""; done
+                for r in "''${rs[@]}"; do
+                  [ -z "$r" ] || [[ $r =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "new: '$r' is not a valid role name (a-z, 0-9, -)"
+                  [ -z "$r" ] || role_list="$role_list \"$r\""
+                done
 
                 mkdir -p "$dir"
                 {
@@ -351,9 +367,11 @@ withInputs
                   problem "no hardware report; run: provision facter $h"
                 fi
                 echo "wipes:"
+                planned=()
                 if disks=$(nix eval --json "$root#nixosConfigurations.$h.config.disko.devices.disk" \
                   --apply 'd: builtins.mapAttrs (_: x: x.device) d' 2>/dev/null); then
                   jq -r 'to_entries[] | "  \(.key)  \(.value)"' <<<"$disks"
+                  mapfile -t planned < <(jq -r '.[]' <<<"$disks")
                 else
                   problem "cannot evaluate disko.devices.disk of $h (is there a disko layout role?)"
                 fi
@@ -368,6 +386,59 @@ withInputs
                 [ $problems = 0 ] || exit 1
                 echo
                 echo "ready: provision commit $1"
+              }
+
+              # What commit refuses to do without: an ssh host key to pin, the
+              # planned disks present on the target, a typed confirmation.
+              sshpin=()
+              pinopts=()
+              pin_target() {
+                local host=''${dest#*@} kh=$tmp/target.known_hosts fp v vals=()
+                if [ $no_pin = 1 ]; then
+                  vals=(StrictHostKeyChecking=no UserKnownHostsFile=/dev/null LogLevel=ERROR)
+                else
+                  ssh-keyscan -T 10 -t ed25519 "$host" >"$kh" 2>/dev/null
+                  [ -s "$kh" ] || die "$1: cannot read the ssh host key of $host"
+                  fp=$(ssh-keygen -lf "$kh" | awk '{ print $2 }')
+                  info "$1: $host presents the ssh host key $fp (compare it with the installer's console)"
+                  vals=(StrictHostKeyChecking=yes "UserKnownHostsFile=$kh")
+                fi
+                for v in "''${vals[@]}"; do
+                  sshpin+=(-o "$v")
+                  pinopts+=(--ssh-option "$v")
+                done
+              }
+
+              check_disks() {
+                local missing=() d
+                [ "''${#planned[@]}" -gt 0 ] || return 0
+                if [ "$mode" = local ]; then
+                  for d in "''${planned[@]}"; do [ -e "$d" ] || missing+=("$d"); done
+                else
+                  # shellcheck disable=SC2029
+                  mapfile -t missing < <(ssh -o BatchMode=yes -o ConnectTimeout=10 "''${sshpin[@]}" "$dest" \
+                    "for d in $(printf '%q ' "''${planned[@]}"); do [ -e \"\$d\" ] || echo \"\$d\"; done") ||
+                    die "$1: cannot check the disks on $dest"
+                fi
+                [ "''${#missing[@]}" -eq 0 ] || die "$1: planned disks not found on the target: ''${missing[*]}"
+              }
+
+              read_passphrase() {
+                local a b
+                read -r -s -p "LUKS passphrase for $1: " a
+                echo >&2
+                read -r -s -p "Again: " b
+                echo >&2
+                [ -n "$a" ] && [ "$a" = "$b" ] || die "$1: the passphrases are empty or differ"
+                printf '%s' "$a" >"$2"
+              }
+
+              confirm_wipe() {
+                local answer
+                if [ $yes = 1 ]; then return 0; fi
+                [ -t 0 ] || die "$1: needs a terminal to confirm; pass --yes to skip"
+                read -r -p "This wipes the disks above. Type '$1' to continue: " answer
+                [ "$answer" = "$1" ] || die "$1: aborted"
               }
 
               cmd_commit() {
@@ -386,7 +457,17 @@ withInputs
                 echo
 
                 mk_tmp
+                if [ "$mode" = remote ]; then pin_target "$h"; fi
+                check_disks "$h"
+                confirm_wipe "$h"
                 host_keys export "$h" "$tmp"
+
+                # An encrypted root needs its passphrase while disko formats.
+                luks_path=
+                if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.enable" 2>/dev/null)" = true ]; then
+                  luks_path=$(nix eval --raw "$root#nixosConfigurations.$h.config.disko-layouts.luks.passwordFile")
+                  read_passphrase "$h" "$tmp/luks.key"
+                fi
 
                 if [ "$mode" = remote ]; then
                   local flags=()
@@ -396,12 +477,13 @@ withInputs
                     flags+=(--kexec "$(kexec_tarball "$h")")
                   fi
                   [ "$(field "$h" buildOnTarget)" != true ] || flags+=(--build-on remote)
+                  [ -z "$luks_path" ] || flags+=(--disk-encryption-keys "$luks_path" "$tmp/luks.key")
                   info "$h: committing to $dest"
-                  # After kexec the machine has a throwaway host key, so ssh must not
-                  # check it here; the fingerprint to expect afterwards is printed.
+                  # The private host key goes over this connection, so it only
+                  # talks to the key pinned (and confirmed) above.
                   nixos-anywhere --flake "$root#$h" --extra-files "$tmp" \
                     --chown /etc/ssh/ssh_host_ed25519_key 0:0 \
-                    --ssh-option StrictHostKeyChecking=no --ssh-option UserKnownHostsFile=/dev/null \
+                    "''${pinopts[@]}" \
                     "''${flags[@]}" "''${passthrough[@]}" "$dest"
                 else
                   local sudo="" system
@@ -409,7 +491,9 @@ withInputs
                   info "$h: building the system before touching any disk"
                   system=$(nix build --no-link --print-out-paths "$root#nixosConfigurations.$h.config.system.build.toplevel")
                   info "$h: committing to this machine"
+                  [ -z "$luks_path" ] || $sudo install -m 600 "$tmp/luks.key" "$luks_path"
                   $sudo disko --mode destroy,format,mount --yes-wipe-all-disks --flake "$root#$h"
+                  [ -z "$luks_path" ] || $sudo shred -u "$luks_path"
                   $sudo mkdir -p /mnt/etc
                   $sudo cp -a "$tmp/etc/." /mnt/etc/
                   $sudo chown -R root:root /mnt/etc/ssh

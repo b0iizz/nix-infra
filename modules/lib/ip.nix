@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, self, ... }:
 let
   inherit (lib)
     all
@@ -19,7 +19,7 @@ let
   wordBits = family: if family == 4 then 8 else 16;
   wordCount = family: if family == 4 then 4 else 8;
   totalBits = family: wordBits family * wordCount family;
-  pow2 = n: foldl' (acc: _: acc * 2) 1 (genList (x: x) n);
+  pow2 = self.lib.pow 2;
 
   fail = msg: throw "ip: ${msg}";
 

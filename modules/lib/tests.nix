@@ -208,33 +208,17 @@ let
       ];
     };
 
-    # -- lua ---------------------------------------------------------------
-    testToLua = {
-      expr = map self.lib.lua.toLua [
-        null
-        true
-        3
-        0.5
-        "a\"b"
-        [
-          1
-          "x"
-        ]
-        {
-          a = 1;
-          "end" = 2;
-          "x-y" = [ ];
-          z = self.lib.lua.raw "hl.dsp.window.close()";
-        }
+    # -- math ---------------------------------------------------------------
+    testPow = {
+      expr = [
+        (self.lib.pow 2 10)
+        (self.lib.pow 10 0)
+        (self.lib.pow 1000 3)
       ];
       expected = [
-        "nil"
-        "true"
-        "3"
-        "0.5"
-        ''"a\"b"''
-        ''{ 1, "x" }''
-        ''{ a = 1, ["end"] = 2, ["x-y"] = {  }, z = hl.dsp.window.close() }''
+        1024
+        1
+        1000000000
       ];
     };
   };

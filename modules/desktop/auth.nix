@@ -15,6 +15,7 @@
 
       desktop.components.AuthForm.qml = ./AuthForm.qml;
       desktop.components.AuthView.qml = ./AuthView.qml;
+      desktop.data.fingerprint = config.desktop.fingerprint;
 
       services.fprintd.enable = lib.mkIf config.desktop.fingerprint (lib.mkDefault true);
     };

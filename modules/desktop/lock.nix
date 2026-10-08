@@ -21,23 +21,19 @@
         '';
       };
 
-      desktop.overlays.LockScreen.qml =
-        builtins.replaceStrings
-          [ "FINGERPRINT" ]
-          [
-            (lib.boolToString config.desktop.fingerprint)
-          ]
-          (builtins.readFile ./LockScreen.qml);
+      desktop.overlays.LockScreen.qml = ./LockScreen.qml;
+
+      desktop.lock.command = lib.mkDefault [
+        "quickshell"
+        "ipc"
+        "call"
+        "lock"
+        "lock"
+      ];
 
       desktop.power.actions.lock = lib.mkDefault {
         name = "Lock";
-        exec = [
-          "quickshell"
-          "ipc"
-          "call"
-          "lock"
-          "lock"
-        ];
+        exec = config.desktop.lock.command;
         order = 5;
       };
     };

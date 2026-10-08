@@ -333,7 +333,7 @@ let
     if matching == [ ] then
       null
     else
-      lib.foldl' (a: b: if stringLength b > stringLength a then b else a) (head matching) matching;
+      lib.last (lib.sortOn stringLength matching);
 
   # A name the wildcard certificate of `zone` is valid for.
   wildcardCovers =
@@ -422,7 +422,7 @@ let
 
   routesOf = gw: filter (r: elem gw r.gateways) services;
 
-  duplicates = xs: unique (filter (x: length (filter (y: y == x) xs) > 1) xs);
+  duplicates = xs: attrNames (filterAttrs (_: g: length g > 1) (lib.groupBy toString xs));
 
   problems =
     let
@@ -590,7 +590,7 @@ let
       httpRoutes = filter (r: r.protocol == "http") routes;
       acmeRoutes = filter (r: r.cert.kind == "acme") httpRoutes;
       originZones = unique (
-        filter (z: z != null) (
+        lib.remove null (
           map (r: r.cert.zone) (filter (r: r.cert.kind == "cloudflare-origin") httpRoutes)
         )
       );
@@ -944,6 +944,8 @@ in
           // genAttrs cfg.origins (_: {
             listenPort = null;
             inherit (cfg.tunnel) persistentKeepalive;
+            # only the gateways: a broken-into origin must not reach the others
+            peers = allGateways;
           });
       };
     };

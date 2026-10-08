@@ -34,7 +34,7 @@ let
   cfg = config.wireguard;
   ip = self.lib.ip;
 
-  pow2 = n: lib.foldl' (acc: _: acc * 2) 1 (lib.genList (x: x) n);
+  pow2 = self.lib.pow 2;
 
   # Name of the agenix-rekey secret holding a host's private key for a
   # network. Generated secrets of all hosts share one directory, so the
@@ -112,6 +112,18 @@ let
             default =
               if net.topology == "hub-and-spoke" && net.hub != name then net.persistentKeepalive else null;
             description = "Keepalive interval this member sends to its peers.";
+          };
+
+          peers = mkOption {
+            type = types.nullOr (types.listOf types.str);
+            default = null;
+            example = [ "gateway" ];
+            description = ''
+              The members this one has a peer for; `null` means all of them.
+              WireGuard needs both ends, so a member left out cannot talk to
+              this one, and what it sends is dropped. Meshes only; in a
+              hub-and-spoke network spokes peer with the hub.
+            '';
           };
 
           routes = mkOption {
@@ -281,7 +293,7 @@ let
     let
       memberNames = attrNames net.members;
       prefixes = map ip.parseCidr (
-        filter (p: p != null) [
+        lib.remove null [
           net.ipv4
           net.ipv6
         ]
@@ -384,7 +396,7 @@ let
               )
             else
               ip.hostAddress prefix indexOf.${host};
-          addresses = filter (a: a != null) [
+          addresses = lib.remove null [
             (pick net.ipv4 m.ipv4)
             (pick net.ipv6 m.ipv6)
           ];
@@ -397,6 +409,7 @@ let
             publicKey
             listenPort
             persistentKeepalive
+            peers
             ;
           ips = map (a: "${ip.format a}/${toString (prefixLengthOf a)}") addresses;
           hostRoutes = map ip.hostCidr addresses;
@@ -444,7 +457,13 @@ let
         self' = n.members.${me};
         isSpoke = n.topology == "hub-and-spoke" && n.hub != me;
         others = filterAttrs (h: _: h != me && rcfg.hosts.${h}.enable) n.members;
-        targets = if isSpoke then filterAttrs (h: _: h == n.hub) others else others;
+        targets =
+          if isSpoke then
+            filterAttrs (h: _: h == n.hub) others
+          else if self'.peers != null then
+            filterAttrs (h: _: lib.elem h self'.peers) others
+          else
+            others;
         allowedIPs =
           other:
           if isSpoke then
@@ -539,7 +558,7 @@ in
       let
         ifaces = wireguard.interfaces;
         list = attrValues ifaces;
-        ports = filter (p: p != null) (map (i: i.listenPort) list);
+        ports = lib.remove null (map (i: i.listenPort) list);
         hubs = filter (i: i.isHub) list;
         unkeyed = flatten (
           map (i: map (p: "${i.interface}: ${p.name}") (filter (p: p.publicKey == null) i.peers)) list

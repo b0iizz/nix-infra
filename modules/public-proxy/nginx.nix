@@ -5,6 +5,7 @@
 let
   inherit (lib)
     concatMapStrings
+    concatMapStringsSep
     filter
     head
     listToAttrs
@@ -28,6 +29,12 @@ let
         ${concatMapStrings (c: "set_real_ip_from ${c};\n") r.realIp.from}real_ip_header ${r.realIp.header};
       '';
 
+      # Proxied services answer Cloudflare only: the connection (not the
+      # client address real_ip substitutes) has to come from its ranges, or
+      # a request straight to the gateway would skip Cloudflare altogether.
+      proxied = filter (r: r.realIp != null) http;
+      proxiedRanges = lib.unique (lib.concatMap (r: r.realIp.from) proxied);
+
       vhost =
         r:
         let
@@ -41,6 +48,7 @@ let
               access_log ${logFile r.id};
               ${optionalString (r.maxBodySize != null) "client_max_body_size ${r.maxBodySize};"}
               ${optionalString (r.realIp != null) (realIp r)}
+              ${optionalString (r.realIp != null) ''if ($public_proxy_from_cloudflare = 0) { return 444; }''}
               ${r.service.nginx.serverConfig}
             '';
             locations."/" = {
@@ -93,6 +101,13 @@ let
         };
 
         streamConfig = concatMapStrings stream streams;
+
+        appendHttpConfig = optionalString (proxied != [ ]) ''
+          geo $realip_remote_addr $public_proxy_from_cloudflare {
+            default 0;
+            ${concatMapStringsSep "\n  " (c: "${c} 1;") proxiedRanges}
+          }
+        '';
       };
     };
 in

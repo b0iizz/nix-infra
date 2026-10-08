@@ -22,12 +22,6 @@
       security.polkit.enable = lib.mkDefault true;
       security.pam.services.polkit-1.rules.auth.fprintd.order = rules.unix.order + 10;
 
-      desktop.overlays.PolkitAgent.qml =
-        builtins.replaceStrings
-          [ "FINGERPRINT" ]
-          [
-            (lib.boolToString config.desktop.fingerprint)
-          ]
-          (builtins.readFile ./PolkitAgent.qml);
+      desktop.overlays.PolkitAgent.qml = ./PolkitAgent.qml;
     };
 }

@@ -8,9 +8,10 @@
 #                        registered as `desktop.workspaces` (desktop.nix).
 #   settings.binds       [ { keys, action, opts ? { } } ] -> hl.bind. `action`
 #                        is a Lua expression, e.g. `exec [ "foot" ]` below or
-#                        `lua.raw "hl.dsp.window.close()"`.
+#                        `raw "hl.dsp.window.close()"`.
 #   settings.startup     shell commands run once when Hyprland starts
 #   settings.launcher    command that toggles the launcher; bound when set
+#   settings.lock        command that locks the screen; bound to SUPER+SHIFT+L when set
 #   settings.extraLua    appended verbatim
 #
 # Only `start-hyprland` is wrapped, as that is what the session file runs
@@ -21,7 +22,8 @@
 { self, lib, ... }:
 let
   w = self.lib.wrappers;
-  inherit (self.lib.lua) toLua raw;
+  toLua = lib.generators.toLua { multiline = false; };
+  raw = lib.generators.mkLuaInline;
 
   # `hl.dsp.exec_cmd` takes a shell command
   exec =
@@ -45,6 +47,7 @@ let
         binds = _: [ ];
         startup = _: [ ];
         launcher = _: null;
+        lock = _: null;
         extraLua = _: "";
       };
       passthru.wrapper.exes = _: [ "start-hyprland" ];
@@ -62,6 +65,10 @@ let
           ++ lib.optional (s.launcher != null) {
             keys = "SUPER + Space";
             action = exec s.launcher;
+          }
+          ++ lib.optional (s.lock != null) {
+            keys = "SUPER + SHIFT + L";
+            action = exec s.lock;
           };
 
         lua = lib.concatStringsSep "\n" (
@@ -101,7 +108,7 @@ let
         locked = true;
         repeating = true;
       };
-      ws = lib.genList (i: toString (i + 1)) 9;
+      ws = map toString (lib.range 1 9);
     in
     {
       passthru.settings = {
@@ -252,6 +259,7 @@ in
           passthru.settings = {
             startup = old: old ++ config.desktop.startup;
             launcher = _: config.desktop.launcherCommand;
+            lock = _: config.desktop.lock.command;
           };
         };
       };
@@ -271,6 +279,7 @@ in
           "hl.dsp.exit()"
         ];
         order = 40;
+        confirm = true;
       };
 
       desktop.bar.items.Workspaces = {

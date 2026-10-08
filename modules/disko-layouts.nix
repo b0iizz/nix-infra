@@ -121,7 +121,17 @@ withInputs
             // {
               root = {
                 size = "100%";
-                content = rootContent;
+                content =
+                  if cfg.luks.enable then
+                    {
+                      type = "luks";
+                      name = cfg.luks.name;
+                      passwordFile = cfg.luks.passwordFile;
+                      settings.allowDiscards = true;
+                      content = rootContent;
+                    }
+                  else
+                    rootContent;
               };
             };
           };
@@ -214,6 +224,31 @@ withInputs
               };
             };
 
+            luks = {
+              enable = mkOption {
+                type = types.bool;
+                default = false;
+                description = ''
+                  Encrypt the root filesystem with LUKS2 (root layouts only). The
+                  passphrase is asked for at boot. `provision commit` asks for it
+                  and hands it to disko, nothing keeps it. The swap partition is
+                  not encrypted, so hibernation is refused and plain swap warns.
+                '';
+              };
+
+              name = mkOption {
+                type = types.str;
+                default = "cryptroot";
+                description = "Name of the opened volume under /dev/mapper.";
+              };
+
+              passwordFile = mkOption {
+                type = types.str;
+                default = "/tmp/luks-root.key";
+                description = "Where the installer puts the passphrase while formatting. Only used then.";
+              };
+            };
+
             mountOptions = mkOption {
               type = types.listOf types.str;
               default = [ "defaults" ];
@@ -273,6 +308,8 @@ withInputs
               in
               hibernation + (if cfg.swap.size == null then 0 else parseSize cfg.swap.size);
 
+            warnings = lib.optional (cfg.luks.enable && cfg.swap.bytes > 0) "disko-layouts: swap is not encrypted (luks.enable only covers the root filesystem).";
+
             assertions =
               lib.mapAttrsToList (mountpoint: claims: {
                 assertion = lib.length claims <= 1;
@@ -281,6 +318,10 @@ withInputs
                 }, which contradict; import only one of them (raid and data can instead be moved apart with their `mountpoint` option).";
               }) byMountpoint
               ++ [
+                {
+                  assertion = !(cfg.luks.enable && cfg.swap.hibernation);
+                  message = "disko-layouts: the hibernation image would be written to the unencrypted swap partition; turn off swap.hibernation or luks.enable.";
+                }
                 {
                   assertion = cfg.swap.bytes == 0 || lib.any (c: c.mountpoint == "/") cfg.claims;
                   message = "disko-layouts: swap.size/swap.hibernation are set but no root layout (disko-root-*) is imported to apply them.";
@@ -334,7 +375,8 @@ withInputs
 
       # Btrfs for impermanence: `/` is a subvolume that is moved aside and
       # recreated empty in the initrd on every boot, so anything not under
-      # /persist, /nix or /var/log is gone after a reboot (but kept in
+      # /persist, /nix, /var/log, /etc/ssh (the host key, which secrets need)
+      # or /var/lib/nixos (uid maps) is gone after a reboot (but kept in
       # /old_roots for a while, see `keepOldRootsDays`). What to keep is declared
       # elsewhere (e.g. the impermanence module); this layout only provides the
       # places to keep it.
@@ -347,7 +389,12 @@ withInputs
         }:
         let
           cfg = config.disko-layouts.impermanence;
-          rootPartition = config.disko.devices.disk.root.content.partitions.root.device;
+          # what holds the btrfs: the partition, or the opened LUKS volume
+          rootPartition =
+            if config.disko-layouts.luks.enable then
+              "/dev/mapper/${config.disko-layouts.luks.name}"
+            else
+              config.disko.devices.disk.root.content.partitions.root.device;
           device = "${utils.escapeSystemdPath rootPartition}.device";
           keep = toString cfg.keepOldRootsDays;
         in
@@ -386,11 +433,17 @@ withInputs
                 "/nix" = subvol config "/nix";
                 "/persist" = subvol config cfg.persistDir;
                 "/log" = subvol config "/var/log";
+                # what the system itself needs to survive a boot: the host key
+                # (secrets are decrypted with it) and the uid/gid allocations
+                "/ssh" = subvol config "/etc/ssh";
+                "/nixos-state" = subvol config "/var/lib/nixos";
               };
             };
 
             fileSystems.${cfg.persistDir}.neededForBoot = true;
             fileSystems."/var/log".neededForBoot = true;
+            fileSystems."/etc/ssh".neededForBoot = true;
+            fileSystems."/var/lib/nixos".neededForBoot = true;
 
             # Needs systemd in the initrd: the wipe must be ordered after a
             # hibernation resume (the resume restores the hibernated system, whose

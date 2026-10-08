@@ -114,22 +114,19 @@
         ]
         ++ lib.optional (cfg.default != null) (lib.getExe setDefault);
 
-        desktop.overlays.WallpaperPicker.qml =
-          builtins.replaceStrings
-            [ "WALLPAPER_DIRECTORY" "AWWW_BIN" "TRANSITION_ARGS" ]
-            [
-              (builtins.toJSON cfg.directory)
-              (builtins.toJSON awww)
-              (builtins.toJSON [
-                "--transition-type"
-                cfg.transition.type
-                "--transition-duration"
-                (toString cfg.transition.duration)
-                "--transition-fps"
-                (toString cfg.transition.fps)
-              ])
-            ]
-            (builtins.readFile ./WallpaperPicker.qml);
+        desktop.overlays.WallpaperPicker.qml = ./WallpaperPicker.qml;
+        desktop.data.wallpaper = {
+          inherit (cfg) directory;
+          inherit awww;
+          transition = [
+            "--transition-type"
+            cfg.transition.type
+            "--transition-duration"
+            (toString cfg.transition.duration)
+            "--transition-fps"
+            (toString cfg.transition.fps)
+          ];
+        };
 
         desktop.bar.items.WallpaperButton = {
           position = "right";

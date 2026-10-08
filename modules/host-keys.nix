@@ -272,7 +272,7 @@ in
 
           # POSIX sh, no single quotes: it is passed through `sh -c '...'`.
           # shellcheck disable=SC2016
-          install_script='set -eu; umask 077; d=/etc/ssh; mkdir -p "$d"; read -r pub; cat > "$d/.host_key.new"; chmod 600 "$d/.host_key.new"; if command -v ssh-keygen >/dev/null; then got=$(ssh-keygen -y -f "$d/.host_key.new" | cut -d" " -f2); want=$(echo "$pub" | cut -d" " -f2); [ "$got" = "$want" ] || { echo "host key does not match public key, aborting" >&2; rm -f "$d/.host_key.new"; exit 1; }; fi; printf "%s\n" "$pub" > "$d/.host_key.pub.new"; chmod 644 "$d/.host_key.pub.new"; mv -f "$d/.host_key.new" "$d/ssh_host_ed25519_key"; mv -f "$d/.host_key.pub.new" "$d/ssh_host_ed25519_key.pub"'
+          install_script='set -eu; umask 077; d=/etc/ssh; mkdir -p "$d"; read -r pub; cat > "$d/.host_key.new"; chmod 600 "$d/.host_key.new"; command -v ssh-keygen >/dev/null || { echo "ssh-keygen is missing, cannot check the key, aborting" >&2; rm -f "$d/.host_key.new"; exit 1; }; got=$(ssh-keygen -y -f "$d/.host_key.new" | cut -d" " -f2); want=$(echo "$pub" | cut -d" " -f2); [ "$got" = "$want" ] || { echo "host key does not match public key, aborting" >&2; rm -f "$d/.host_key.new"; exit 1; }; printf "%s\n" "$pub" > "$d/.host_key.pub.new"; chmod 644 "$d/.host_key.pub.new"; mv -f "$d/.host_key.new" "$d/ssh_host_ed25519_key"; mv -f "$d/.host_key.pub.new" "$d/ssh_host_ed25519_key.pub"'
 
           parse_target_opts() {
             force_local=0 target="" restart=0 rest=()

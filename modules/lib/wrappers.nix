@@ -36,10 +36,9 @@
 # builder replace `buildCommand`. Both are just extensions.
 #
 # Every wrapper built through `perSystem.wrappers` also gets the global features
-# in modules/wrappers/ (`wrapperExtensions`): `passthru.files`/`path`/`live`
-# (files.nix) and `passthru.reload`/`activation` (activation.nix). The helpers
-# they use (`fileHelpers`, `toFile`, `tree`, `withFiles`, `withPath`,
-# `withReload`, `collect`) are at the end of this file.
+# in modules/wrappers/ (`wrapperExtensions`): `passthru.files`/`path`
+# (files.nix). The helpers they use (`fileHelpers`, `toFile`, `tree`) are at
+# the end of this file.
 { withInputs, lib, ... }:
 withInputs
   {
@@ -213,34 +212,12 @@ withInputs
         # ---- files (used by the `files` feature, modules/wrappers/files.nix)
         #
         # A file's content is anything `toFile` understands: a string
-        # (verbatim), a path or derivation (as is), `{ text }`, `{ source }`,
+        # (verbatim), a path or derivation (as is),
         # or a function `name -> path`, which is what the format helpers return.
-        fileHelpers =
-          pkgs:
-          let
-            formats = {
-              json = pkgs.formats.json { };
-              yaml = pkgs.formats.yaml { };
-              toml = pkgs.formats.toml { };
-              ini = pkgs.formats.ini { };
-              iniList = pkgs.formats.ini { listsAsDuplicateKeys = true; };
-              keyValue = pkgs.formats.keyValue { };
-            };
-            generate =
-              format: value: name:
-              format.generate (baseNameOf name) value;
-          in
-          {
-            inherit formats;
-            json = generate formats.json;
-            yaml = generate formats.yaml;
-            toml = generate formats.toml;
-            ini = generate formats.ini;
-            iniList = generate formats.iniList;
-            keyValue = generate formats.keyValue;
-            text = value: name: pkgs.writeText (baseNameOf name) value;
-            lines = value: name: pkgs.writeText (baseNameOf name) (lib.concatStringsSep "\n" (value ++ [ "" ]));
-          };
+        fileHelpers = pkgs: {
+          toml = value: name: (pkgs.formats.toml { }).generate (baseNameOf name) value;
+          text = value: name: pkgs.writeText (baseNameOf name) value;
+        };
 
         toFile =
           pkgs: name: content:
@@ -250,10 +227,6 @@ withInputs
             content
           else if lib.isString content then
             pkgs.writeText (baseNameOf name) content
-          else if lib.isAttrs content && content ? source then
-            content.source
-          else if lib.isAttrs content && content ? text then
-            pkgs.writeText (baseNameOf name) content.text
           else
             throw "wrappers: don't know how to turn `${name}` into a file";
 
@@ -266,25 +239,6 @@ withInputs
               path = toFile pkgs n c;
             }) files
           );
-
-        # ---- extension constructors
-        #
-        # Plain values are not valid infusion leaves, so these wrap them.
-        withFiles = files: {
-          passthru.files = lib.mapAttrs (
-            _: content: _:
-            content
-          ) files;
-        };
-        withPath = path: { passthru.path = _: path; };
-        withReload = reload: { passthru.reload = _: reload; };
-
-        # collect [ wrapper ... ] -> NixOS config fragment: installs the
-        # packages and merges their `passthru.activation`.
-        collect = wrapped: {
-          environment.systemPackages = wrapped;
-          system.activationScripts = lib.foldl' (acc: p: acc // (p.passthru.activation or { })) { } wrapped;
-        };
       };
     }
   )

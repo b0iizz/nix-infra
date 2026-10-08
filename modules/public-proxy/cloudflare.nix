@@ -1,12 +1,13 @@
-# Cloudflare integration of the public proxy (see module.nix), with one API
-# token (`cloudflare.apiTokenFile`):
+# Cloudflare integration of the public proxy (see module.nix), with scoped API
+# tokens (`cloudflare.dnsTokenFile`, `originTokenFile`, `acmeTokenFile`), one
+# per job so a gateway only holds what it uses:
 #
 # - `dns.enable`: one gateway keeps the records of `publicProxy.records`
 #   in Cloudflare up to date.
 # - Cloudflare origin certificates (`tls.mode = "cloudflare-origin"`):
 #   either committed per zone (`zones.<zone>.cloudflareOrigin`), or issued
 #   through the API on every gateway that needs one.
-# - The token is the default credential of the DNS-01 challenge.
+# - Its own token is the default credential of the DNS-01 challenge.
 # - The ranges Cloudflare's proxy connects from, trusted for the client
 #   address of proxied services.
 #
@@ -329,7 +330,8 @@ let
       backend = pp.backend;
 
       tool = "${cloudflareTool pkgs}/bin/public-proxy-cloudflare";
-      apiTokenSecret = "public-proxy-cloudflare-api-token";
+      dnsTokenSecret = "public-proxy-cloudflare-dns-token";
+      originTokenSecret = "public-proxy-cloudflare-origin-token";
       fileSecret = zone: "public-proxy-cloudflare-origin-${zone}";
       originDir = zone: "/var/lib/public-proxy/cloudflare-origin/${zone}";
       originUnit = zone: "public-proxy-cloudflare-origin-${zone}";
@@ -342,7 +344,6 @@ let
       originZones = unique (map (r: r.cert.zone) originRoutes);
       fileZones = filter (z: pp.zones.${z}.cloudflareOrigin.certificate != null) originZones;
       apiZones = subtractLists fileZones originZones;
-      usesApi = cf.dns.sync || apiZones != [ ];
 
       # The zone apex, its wildcard and whatever deeper names are served.
       originHostnames =
@@ -363,6 +364,7 @@ let
           name,
           description,
           command,
+          tokenSecret,
           settings,
           extraConfig ? { },
         }:
@@ -380,7 +382,7 @@ let
               Type = "oneshot";
               RemainAfterExit = remain;
               ExecStart = "${tool} ${command} ${configFile}";
-              LoadCredential = "cloudflare-token:${config.age.secrets.${apiTokenSecret}.path}";
+              LoadCredential = "cloudflare-token:${config.age.secrets.${tokenSecret}.path}";
               UMask = "0077";
               # The API being unreachable at boot shouldn't wait a day.
               Restart = "on-failure";
@@ -423,15 +425,15 @@ let
               }
             ) fileZones
           )
-          // optionalAttrs usesApi {
-            ${apiTokenSecret}.rekeyFile = cf.apiTokenFile;
-          };
+          // optionalAttrs cf.dns.sync { ${dnsTokenSecret}.rekeyFile = cf.dnsTokenFile; }
+          // optionalAttrs (apiZones != [ ]) { ${originTokenSecret}.rekeyFile = cf.originTokenFile; };
 
         systemd.services = mkMerge (
           optional cf.dns.sync (job {
             name = "public-proxy-dns";
             description = "Sync public-proxy DNS records to Cloudflare";
             command = "dns";
+            tokenSecret = dnsTokenSecret;
             settings = {
               inherit (cf.dns)
                 zones
@@ -447,6 +449,7 @@ let
               name = originUnit zone;
               description = "Cloudflare origin certificate for ${zone}";
               command = "origin";
+              tokenSecret = originTokenSecret;
               settings = {
                 inherit zone;
                 hostnames = originHostnames zone;
@@ -503,7 +506,7 @@ in
                 default = null;
                 description = ''
                   `null`: every gateway issues its own origin certificate
-                  through the Cloudflare API (`cloudflare.apiTokenFile`) and
+                  through the Cloudflare API (`cloudflare.originTokenFile`) and
                   renews it before it expires.
 
                   Otherwise an origin certificate (PEM) of this zone from the
@@ -527,15 +530,38 @@ in
 
     cloudflare = {
 
-      apiTokenFile = mkOption {
+      # One token per job, each with the least it needs, and only on the
+      # gateways that run the job: a breached gateway then holds one narrow
+      # token, not control of every zone.
+      dnsTokenFile = mkOption {
         type = types.path;
-        default = rcfg.secretsDir + "/public-proxy/cloudflare-api-token.age";
-        defaultText = "secrets/public-proxy/cloudflare-api-token.age";
+        default = rcfg.secretsDir + "/public-proxy/cloudflare-dns-token.age";
+        defaultText = "secrets/public-proxy/cloudflare-dns-token.age";
         description = ''
           age encrypted Cloudflare API token (create with `agenix edit
-          <file>`), used for DNS records, origin certificates and the
-          DNS-01 challenge. Permissions, for all zones in `zones`:
-          Zone:Read, DNS:Edit and SSL and Certificates:Edit.
+          <file>`) for the record sync, on `dns.gateway` only.
+          Permissions, for the zones in `zones`: Zone:Read and DNS:Edit.
+        '';
+      };
+
+      originTokenFile = mkOption {
+        type = types.path;
+        default = rcfg.secretsDir + "/public-proxy/cloudflare-origin-token.age";
+        defaultText = "secrets/public-proxy/cloudflare-origin-token.age";
+        description = ''
+          age encrypted Cloudflare API token that issues origin certificates,
+          on the gateways that need one. Permission: SSL and Certificates:Edit.
+        '';
+      };
+
+      acmeTokenFile = mkOption {
+        type = types.path;
+        default = rcfg.secretsDir + "/public-proxy/cloudflare-acme-token.age";
+        defaultText = "secrets/public-proxy/cloudflare-acme-token.age";
+        description = ''
+          age encrypted Cloudflare API token for the DNS-01 challenge, on
+          gateways that use it. Permissions, for the zones in `zones`:
+          Zone:Read and DNS:Edit.
         '';
       };
 
@@ -587,7 +613,7 @@ in
   config = {
 
     publicProxy.tls.acme.credentials = mkIf (cfg.tls.acme.dnsProvider == "cloudflare") (mkDefault {
-      CLOUDFLARE_DNS_API_TOKEN = cfg.cloudflare.apiTokenFile;
+      CLOUDFLARE_DNS_API_TOKEN = cfg.cloudflare.acmeTokenFile;
     });
 
     publicProxy.internal.problems = optional (
@@ -595,7 +621,7 @@ in
     ) "`dns.gateway` ${toString cfg.dns.gateway} is not in `gateways`";
 
     publicProxy.internal.hostData.cloudflare = host: {
-      inherit (cfg.cloudflare) apiTokenFile;
+      inherit (cfg.cloudflare) dnsTokenFile originTokenFile acmeTokenFile;
       dns = {
         sync = cfg.dns.enable && cfg.dns.gateway == host;
         inherit (cfg.dns) ttl prune;

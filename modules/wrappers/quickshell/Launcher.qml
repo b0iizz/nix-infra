@@ -15,6 +15,8 @@ Scope {
 
     readonly property int maxRows: 10
     property bool shown: false
+    // sorted once and again only when the applications change, not per key
+    readonly property var all: entries()
 
     function entries() {
         const apps = DesktopEntries.applications.values.filter(e => !e.noDisplay && !e.runInTerminal).map(e => ({
@@ -25,6 +27,7 @@ Scope {
         const extra = ShellData.launcherEntries.map(e => ({
                     name: e.name,
                     search: e.name.toLowerCase(),
+                    confirm: e.confirm ?? false,
                     run: () => Quickshell.execDetached(e.exec)
                 }));
         return extra.concat(apps).sort((a, b) => a.name.localeCompare(b.name));
@@ -45,15 +48,22 @@ Scope {
             id: window
 
             property int current: 0
+            // the entry that asked for a second Enter
+            property string armed: ""
             readonly property var matches: {
                 const q = input.text.toLowerCase();
-                return root.entries().filter(e => e.search.includes(q)).slice(0, root.maxRows);
+                return root.all.filter(e => e.search.includes(q)).slice(0, root.maxRows);
             }
 
             function run() {
                 if (matches.length === 0)
                     return;
-                matches[Math.min(current, matches.length - 1)].run();
+                const m = matches[Math.min(current, matches.length - 1)];
+                if (m.confirm && armed !== m.name) {
+                    armed = m.name;
+                    return;
+                }
+                m.run();
                 root.shown = false;
             }
 
@@ -77,11 +87,20 @@ Scope {
                     color: Theme.base05
                     font.family: Theme.fontMonospace
                     font.pointSize: Theme.sizePopups
-                    onTextChanged: window.current = 0
+                    onTextChanged: {
+                        window.current = 0;
+                        window.armed = "";
+                    }
                     Keys.onEscapePressed: root.shown = false
                     Keys.onReturnPressed: window.run()
-                    Keys.onDownPressed: window.current = Math.min(window.current + 1, window.matches.length - 1)
-                    Keys.onUpPressed: window.current = Math.max(window.current - 1, 0)
+                    Keys.onDownPressed: {
+                        window.current = Math.min(window.current + 1, window.matches.length - 1);
+                        window.armed = "";
+                    }
+                    Keys.onUpPressed: {
+                        window.current = Math.max(window.current - 1, 0);
+                        window.armed = "";
+                    }
                 }
 
                 Repeater {
@@ -91,7 +110,7 @@ Scope {
                         required property var modelData
                         required property int index
 
-                        text: modelData.name
+                        text: index === window.current && modelData.name === window.armed ? modelData.name + ": Enter again" : modelData.name
                         color: index === window.current ? Theme.base0D : Theme.base04
                         font.family: Theme.fontMonospace
                         font.pointSize: Theme.sizePopups

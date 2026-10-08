@@ -24,7 +24,7 @@ let
       );
       sizes = map (r: r.range) (lib.filter (r: (r.type or "") == "phys_mem" && r ? range) resources);
     in
-    if sizes == [ ] then null else lib.foldl' lib.add 0 sizes;
+    if sizes == [ ] then null else lib.sum sizes;
 
   # --- disks ------------------------------------------------------------------
   byId = "/dev/disk/by-id/";

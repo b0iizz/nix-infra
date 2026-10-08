@@ -5,8 +5,7 @@
 // The password and the fingerprint are checked by two PAM conversations at the
 // same time, as the user running the shell: the password one answers to what
 // is typed, the fingerprint one to the reader. Whichever succeeds unlocks.
-// The PAM services are in modules/desktop/lock.nix, FINGERPRINT is replaced
-// there as well.
+// The PAM services are in modules/desktop/lock.nix.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -16,7 +15,7 @@ import Quickshell.Wayland
 Scope {
     id: root
 
-    readonly property bool fingerprint: FINGERPRINT
+    readonly property bool fingerprint: ShellData.fingerprint
     readonly property int maxFingerprintRetries: 5
     property bool failed: false
     property int fingerprintRetries: 0
@@ -40,11 +39,21 @@ Scope {
 
         config: "quickshell-lock"
         onCompleted: result => {
-            if (!root.unlockOn(result)) {
+            // an abort after the unlock must not start a new conversation
+            if (sessionLock.locked && !root.unlockOn(result)) {
                 root.failed = true;
-                password.start();
+                // not at once: a PAM error that returns immediately would spin
+                restartPassword.start();
             }
         }
+    }
+
+    Timer {
+        id: restartPassword
+
+        interval: 1000
+        onTriggered: if (sessionLock.locked)
+            password.start()
     }
 
     PamContext {
@@ -79,6 +88,7 @@ Scope {
                     finger.start();
             } else {
                 retry.stop();
+                restartPassword.stop();
                 password.abort();
                 finger.abort();
             }

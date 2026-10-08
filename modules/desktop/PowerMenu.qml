@@ -1,5 +1,5 @@
 // Shutdown menu: `quickshell ipc call powermenu toggle` opens it, click an
-// action or press Escape. ACTIONS_JSON is replaced by modules/desktop/power.nix.
+// action or press Escape. An action that needs `confirm` takes a second click.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -8,7 +8,7 @@ import Quickshell.Wayland
 Scope {
     id: root
 
-    readonly property var actions: ACTIONS_JSON
+    readonly property var actions: ShellData.powerActions
     property bool shown: false
 
     IpcHandler {
@@ -43,17 +43,25 @@ Scope {
                     Text {
                         required property var modelData
 
+                        property bool armed: false
+
                         width: parent.width
                         height: 32
-                        text: modelData.name
+                        text: armed ? modelData.name + ": click again" : modelData.name
                         verticalAlignment: Text.AlignVCenter
-                        color: Theme.base05
+                        color: armed ? Theme.base08 : Theme.base05
                         font.family: Theme.fontMonospace
                         font.pointSize: Theme.sizePopups
 
                         MouseArea {
                             anchors.fill: parent
+                            hoverEnabled: true
+                            onExited: parent.armed = false
                             onClicked: {
+                                if (parent.modelData.confirm && !parent.armed) {
+                                    parent.armed = true;
+                                    return;
+                                }
                                 Quickshell.execDetached(modelData.exec);
                                 root.shown = false;
                             }
