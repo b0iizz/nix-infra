@@ -18,7 +18,8 @@
 #                             what has no .desktop file; applications don't
 #                             register, the launcher finds their entries
 #   desktop.power.actions     { name, exec (argv), order }  shut down, log out, ...
-#   desktop.startup          commands the compositor starts with the session
+#   desktop.session           argv that starts the graphical session (for a greeter)
+#   desktop.startup         commands the compositor starts with the session
 #   desktop.launcherCommand   command that toggles the launcher, if there is one
 {
   lib,
@@ -118,6 +119,12 @@ in
         default = [ ];
       };
 
+      session = mkOption {
+        type = types.nullOr (types.listOf types.str);
+        default = null;
+        description = "Command that starts the graphical session, set by the compositor role.";
+      };
+
       launcherCommand = mkOption {
         type = types.nullOr types.str;
         default = null;
@@ -144,6 +151,7 @@ in
               };
               boot.loader.grub.enable = false;
               system.stateVersion = "26.05";
+              users.users.joni.isNormalUser = true;
             }
           ]
           ++ map (r: self.modules.nixos.${r}) roles;
@@ -160,6 +168,10 @@ in
         "alacritty"
       ];
       shellOnly = host [ "quickshell" ];
+      withGreeter = host [
+        "hyprland"
+        "greeter"
+      ];
       hypr = c: c.programs.hyprland.package.passthru.settings;
       quickshellPackage =
         c:
@@ -180,6 +192,7 @@ in
           };
           expected = {
             entries = [
+              "power-lock"
               "power-logout"
               "power-poweroff"
               "power-reboot"
@@ -189,7 +202,10 @@ in
               "PowerButton"
               "Workspaces"
             ];
-            overlays = [ "PowerMenu" ];
+            overlays = [
+              "LockScreen"
+              "PowerMenu"
+            ];
             workspaces = 9;
           };
         };
@@ -201,6 +217,7 @@ in
           };
           expected = {
             entries = [
+              "power-lock"
               "power-poweroff"
               "power-reboot"
               "power-suspend"
@@ -243,6 +260,13 @@ in
             grep -q '"Log out"' $tree/PowerMenu.qml
             ! grep -q ACTIONS_JSON $tree/PowerMenu.qml
             grep -q 'PowerMenu {}' $tree/shell.qml
+            grep -q 'LockScreen {}' $tree/shell.qml
+
+            # the greeter gets the users and the compositor's start command
+            greeter=${lib.last (lib.splitString " " withGreeter.services.greetd.settings.default_session.command)}
+            gtree=$(grep -o "path /nix/store/[^ ']*" $greeter | head -1 | cut -d' ' -f2)
+            grep -q '"joni"' $gtree/GreeterData.qml
+            grep -q 'bin/start-hyprland' $gtree/GreeterData.qml
             touch $out
           ''
         else

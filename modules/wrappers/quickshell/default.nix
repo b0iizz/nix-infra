@@ -31,18 +31,43 @@ let
 
   cap = s: lib.toUpper (builtins.substring 0 1 s) + builtins.substring 1 (-1) s;
 
-  qmldir =
-    types:
-    lib.concatMapStringsSep "\n" (
+  # QML source for the trees of the shell and the greeter (`self.lib.quickshell`)
+  qml = {
+    singleton = body: ''
+      pragma Singleton
+      import QtQuick
+      import Quickshell
+
+      Singleton {
+      ${body}
+      }
+    '';
+
+    property =
+      type: name: value:
+      "    readonly property ${type} ${name}: ${value}";
+
+    # Theme.qml from `passthru.theme`
+    theme =
       t:
-      "${
-        lib.optionalString (builtins.elem t [
-          "Theme"
-          "ShellData"
-        ]) "singleton "
-      }${t} 1.0 ${t}.qml"
-    ) types
-    + "\n";
+      qml.singleton (
+        lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (n: v: qml.property "color" n (builtins.toJSON "#${v}")) t.colors
+          ++ lib.mapAttrsToList (n: v: qml.property "string" "font${cap n}" (builtins.toJSON v)) t.fonts
+          ++ lib.mapAttrsToList (n: v: qml.property "int" "size${cap n}" (toString v)) t.sizes
+          ++ lib.mapAttrsToList (n: v: qml.property "real" "opacity${cap n}" (builtins.toJSON v)) t.opacity
+          ++ [ (qml.property "bool" "dark" (lib.boolToString (t.polarity == "dark"))) ]
+        )
+      );
+
+    # qmldir listing `types`; those in `singletons` as singletons
+    qmldir =
+      singletons: types:
+      lib.concatMapStringsSep "\n" (
+        t: "${lib.optionalString (builtins.elem t singletons) "singleton "}${t} 1.0 ${t}.qml"
+      ) types
+      + "\n";
+  };
 
   program = pkgs: [
     (w.withPackage pkgs.quickshell)
@@ -70,33 +95,10 @@ let
         inPosition =
           p: lib.concatMapStringsSep "\n" (i: "${i.name} {}") (lib.filter (i: i.position == p) items);
 
-        singleton = body: ''
-          pragma Singleton
-          import QtQuick
-          import Quickshell
-
-          Singleton {
-          ${body}
-          }
-        '';
-        property =
-          type: name: value:
-          "    readonly property ${type} ${name}: ${value}";
-
-        theme = singleton (
-          lib.concatStringsSep "\n" (
-            lib.mapAttrsToList (n: v: property "color" n (builtins.toJSON "#${v}")) t.colors
-            ++ lib.mapAttrsToList (n: v: property "string" "font${cap n}" (builtins.toJSON v)) t.fonts
-            ++ lib.mapAttrsToList (n: v: property "int" "size${cap n}" (toString v)) t.sizes
-            ++ lib.mapAttrsToList (n: v: property "real" "opacity${cap n}" (builtins.toJSON v)) t.opacity
-            ++ [ (property "bool" "dark" (lib.boolToString (t.polarity == "dark"))) ]
-          )
-        );
-
-        shellData = singleton (
+        shellData = qml.singleton (
           lib.concatStringsSep "\n" [
-            (property "var" "workspaces" (builtins.toJSON s.workspaces))
-            (property "var" "launcherEntries" (builtins.toJSON (lib.attrValues s.launcherEntries)))
+            (qml.property "var" "workspaces" (builtins.toJSON s.workspaces))
+            (qml.property "var" "launcherEntries" (builtins.toJSON (lib.attrValues s.launcherEntries)))
           ]
         );
 
@@ -164,17 +166,22 @@ let
           '';
           "qmldir" =
             _:
-            qmldir (
+            qml.qmldir
               [
                 "Theme"
                 "ShellData"
-                "Bar"
-                "Launcher"
               ]
-              ++ map (i: i.name) items
-              ++ overlays
-            );
-          "Theme.qml" = _: theme;
+              (
+                [
+                  "Theme"
+                  "ShellData"
+                  "Bar"
+                  "Launcher"
+                ]
+                ++ map (i: i.name) items
+                ++ overlays
+              );
+          "Theme.qml" = _: qml.theme t;
           "ShellData.qml" = _: shellData;
           # the check is in a value: the names of the files may not depend on `final`
           "Bar.qml" =
@@ -191,6 +198,8 @@ let
   ];
 in
 {
+  flake.lib.quickshell = qml;
+
   perSystem =
     { pkgs, ... }:
     {
@@ -201,8 +210,9 @@ in
   # registered in `desktop.*` (modules/desktop.nix); Hyprland (or whatever
   # compositor) picks the start command and the launcher key up from there.
   #
-  # Comes with what every desktop needs: the shutdown menu (desktop/power.nix)
-  # and the session basics (desktop/session.nix).
+  # Comes with what every desktop needs: the shutdown menu (desktop/power.nix),
+  # the lock screen (desktop/lock.nix) and the session basics
+  # (desktop/session.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
@@ -227,6 +237,7 @@ in
       imports = with self.modules.nixos; [
         desktop
         desktop-power
+        desktop-lock
         desktop-session
       ];
 

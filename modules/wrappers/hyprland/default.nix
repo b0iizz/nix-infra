@@ -234,9 +234,10 @@ in
   #
   # ponytail: the session file (share/wayland-sessions/hyprland.desktop) in the
   # wrapper still points at the unwrapped start-hyprland, so a display manager
-  # starts Hyprland without this config until it is rewritten like
-  # `fixDesktopEntries` does for share/applications; `providedSessions` is not
-  # forwarded either.
+  # that reads session files starts Hyprland without this config until it is
+  # rewritten like `fixDesktopEntries` does for share/applications;
+  # `providedSessions` is not forwarded either. The `greeter` role is not
+  # affected: it runs `desktop.session`, the wrapped command, directly.
   flake.modules.nixos.hyprland =
     { config, pkgs, ... }:
     let
@@ -259,6 +260,8 @@ in
         name = lib.removePrefix "name:" r.workspace;
         monitor = r.monitor or null;
       }) hyprland.passthru.settings.workspaces;
+
+      desktop.session = [ (lib.getExe' config.programs.hyprland.package "start-hyprland") ];
 
       desktop.power.actions.logout = {
         name = "Log out";
