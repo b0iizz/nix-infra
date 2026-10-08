@@ -14,6 +14,9 @@
 #                             QML type name, so it starts with a capital.
 #   desktop.overlays.<Name>   a QML component that lives at the root of the
 #                             shell (menus, notifications, ...): `qml`
+#   desktop.components.<Name> a QML file other components use (AuthForm, ...),
+#                             part of the tree but not instantiated
+#   desktop.fingerprint       fingerprint login for lock screen, greeter and polkit
 #   desktop.launcher.entries  { name, exec (argv), icon }  launcher entries for
 #                             what has no .desktop file; applications don't
 #                             register, the launcher finds their entries
@@ -82,6 +85,24 @@ in
         default = { };
       };
 
+      components = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options.qml = mkOption { type = types.either types.lines types.path; };
+          }
+        );
+        default = { };
+      };
+
+      fingerprint = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Fingerprint login for the lock screen, the greeter and polkit
+          prompts. Turn it off on hosts without a reader.
+        '';
+      };
+
       power.actions = mkOption {
         type = types.attrsOf (
           types.submodule {
@@ -139,10 +160,11 @@ in
   perSystem =
     { pkgs, ... }:
     let
-      host =
-        roles:
+      hostWith =
+        extra: roles:
         (inputs.nixpkgs.lib.nixosSystem {
           modules = [
+            extra
             {
               nixpkgs.hostPlatform = pkgs.stdenv.hostPlatform.system;
               fileSystems."/" = {
@@ -156,6 +178,7 @@ in
           ]
           ++ map (r: self.modules.nixos.${r}) roles;
         }).config;
+      host = hostWith { };
 
       full = host [
         "hyprland"
@@ -172,6 +195,20 @@ in
         "hyprland"
         "greeter"
       ];
+      noReader = hostWith { desktop.fingerprint = false; } [
+        "hyprland"
+        "quickshell"
+        "greeter"
+      ];
+      pam = c: name: c.security.pam.services.${name};
+      # the reader is asked after the password (greetd and polkit)
+      passwordFirst =
+        c: name:
+        let
+          text = (pam c name).text;
+          at = pattern: lib.stringLength (lib.head (lib.splitString pattern text));
+        in
+        lib.hasInfix "pam_fprintd" text && at "pam_unix" < at "pam_fprintd";
       hypr = c: c.programs.hyprland.package.passthru.settings;
       quickshellPackage =
         c:
@@ -204,6 +241,7 @@ in
             ];
             overlays = [
               "LockScreen"
+              "PolkitAgent"
               "PowerMenu"
             ];
             workspaces = 9;
@@ -236,6 +274,36 @@ in
             startup = 1;
           };
         };
+        testFingerprint = {
+          expr = {
+            daemon = full.services.fprintd.enable;
+            polkit = passwordFirst full "polkit-1";
+            greetd = passwordFirst withGreeter "quickshell-greeter-auth";
+            greetdUsesIt =
+              withGreeter.security.pam.services.greetd.rules.auth.login.modulePath == "quickshell-greeter-auth";
+            # the lock screen's password service must not wait for the reader
+            lockPasswordOnly = !(pam full "quickshell-lock").fprintAuth;
+            lockReader = lib.hasInfix "pam_fprintd" (pam full "quickshell-lock-fingerprint").text;
+          };
+          expected = {
+            daemon = true;
+            polkit = true;
+            greetd = true;
+            greetdUsesIt = true;
+            lockPasswordOnly = true;
+            lockReader = true;
+          };
+        };
+        testNoReader = {
+          expr = {
+            daemon = noReader.services.fprintd.enable;
+            lockReaderService = noReader.security.pam.services ? quickshell-lock-fingerprint;
+          };
+          expected = {
+            daemon = false;
+            lockReaderService = false;
+          };
+        };
         testHyprlandAlone = {
           expr = {
             launcher = (hypr hyprOnly).launcher;
@@ -261,12 +329,22 @@ in
             ! grep -q ACTIONS_JSON $tree/PowerMenu.qml
             grep -q 'PowerMenu {}' $tree/shell.qml
             grep -q 'LockScreen {}' $tree/shell.qml
+            grep -q 'PolkitAgent {}' $tree/shell.qml
+            grep -q 'AuthView' $tree/qmldir
+            grep -q 'AuthView {' $tree/LockScreen.qml
+            grep -q 'AuthForm {' $tree/PolkitAgent.qml
+            ! grep -q FINGERPRINT $tree/LockScreen.qml $tree/PolkitAgent.qml
 
             # the greeter gets the users and the compositor's start command
             greeter=${lib.last (lib.splitString " " withGreeter.services.greetd.settings.default_session.command)}
             gtree=$(grep -o "path /nix/store/[^ ']*" $greeter | head -1 | cut -d' ' -f2)
             grep -q '"joni"' $gtree/GreeterData.qml
             grep -q 'bin/start-hyprland' $gtree/GreeterData.qml
+
+            # the lock screen and the login screen are the same files
+            cmp $tree/AuthView.qml $gtree/AuthView.qml
+            cmp $tree/AuthForm.qml $gtree/AuthForm.qml
+            grep -q 'AuthView {' $gtree/Greeter.qml
             touch $out
           ''
         else

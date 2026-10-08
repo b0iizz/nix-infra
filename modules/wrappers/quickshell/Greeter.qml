@@ -1,6 +1,11 @@
 // Login screen for greetd. It runs as an ordinary fullscreen window inside a
 // kiosk compositor (cage), asks greetd to authenticate the chosen user and
-// starts `GreeterData.session` once that worked.
+// starts `GreeterData.session` once that worked. What it shows is the AuthView
+// of the lock screen.
+//
+// With a fingerprint reader greetd's PAM stack asks for the password first and
+// the reader second (modules/wrappers/quickshell/greeter.nix): an empty answer
+// moves on to the reader.
 import QtQuick
 import Quickshell
 import Quickshell.Services.Greetd
@@ -12,11 +17,14 @@ FloatingWindow {
     property string message: ""
     property bool isError: false
     property bool failed: false
+    property bool inputEnabled: false
+    property bool echo: false
 
     function begin(name) {
         user = name;
         message = "";
         isError = false;
+        inputEnabled = false;
         Greetd.cancelSession();
         Greetd.createSession(name);
     }
@@ -31,10 +39,8 @@ FloatingWindow {
         function onAuthMessage(text, error, responseRequired, echoResponse) {
             window.message = text;
             window.isError = error;
-            password.echoMode = echoResponse ? TextInput.Normal : TextInput.Password;
-            password.enabled = responseRequired;
-            if (responseRequired)
-                password.forceActiveFocus();
+            window.echo = echoResponse;
+            window.inputEnabled = responseRequired;
         }
 
         function onAuthFailure(text) {
@@ -47,61 +53,22 @@ FloatingWindow {
         }
     }
 
-    Column {
-        anchors.centerIn: parent
-        spacing: 16
-
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 16
-
-            Repeater {
-                model: GreeterData.users
-
-                Text {
-                    required property string modelData
-
-                    text: modelData
-                    color: modelData === window.user ? Theme.base0D : Theme.base04
-                    font.family: Theme.fontMonospace
-                    font.pointSize: Theme.sizeDesktop
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            window.failed = false;
-                            window.begin(parent.modelData);
-                        }
-                    }
-                }
-            }
+    AuthView {
+        anchors.fill: parent
+        users: GreeterData.users
+        user: window.user
+        message: (window.failed ? "Login failed. " : "") + window.message
+        isError: window.isError || window.failed
+        echo: window.echo
+        inputEnabled: window.inputEnabled
+        hint: GreeterData.fingerprint ? "Password, or press Enter and use the fingerprint reader" : ""
+        onSubmitted: text => {
+            window.failed = false;
+            Greetd.respond(text);
         }
-
-        TextInput {
-            id: password
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: 280
-            horizontalAlignment: TextInput.AlignHCenter
-            echoMode: TextInput.Password
-            enabled: false
-            focus: true
-            color: Theme.base05
-            font.family: Theme.fontMonospace
-            font.pointSize: Theme.sizeDesktop
-            onAccepted: {
-                window.failed = false;
-                Greetd.respond(text);
-                text = "";
-            }
-        }
-
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: (window.failed ? "Login failed. " : "") + window.message
-            color: window.isError || window.failed ? Theme.base08 : Theme.base04
-            font.family: Theme.fontMonospace
-            font.pointSize: Theme.sizePopups
+        onUserChosen: name => {
+            window.failed = false;
+            window.begin(name);
         }
     }
 }

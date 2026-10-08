@@ -1,7 +1,12 @@
 // Lock screen: `quickshell ipc call lock lock` locks the session
-// (ext-session-lock, so the compositor itself keeps everything hidden), the
-// password is checked by PAM as the current user (service "quickshell-lock",
-// see modules/desktop/lock.nix).
+// (ext-session-lock, so the compositor itself keeps everything hidden). It is
+// the same AuthView as the login screen.
+//
+// The password and the fingerprint are checked by two PAM conversations at the
+// same time, as the user running the shell: the password one answers to what
+// is typed, the fingerprint one to the reader. Whichever succeeds unlocks.
+// The PAM services are in modules/desktop/lock.nix, FINGERPRINT is replaced
+// there as well.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -11,7 +16,16 @@ import Quickshell.Wayland
 Scope {
     id: root
 
+    readonly property bool fingerprint: FINGERPRINT
+    readonly property int maxFingerprintRetries: 5
     property bool failed: false
+    property int fingerprintRetries: 0
+
+    function unlockOn(result) {
+        if (result === PamResult.Success)
+            sessionLock.locked = false;
+        return result === PamResult.Success;
+    }
 
     IpcHandler {
         target: "lock"
@@ -22,23 +36,35 @@ Scope {
     }
 
     PamContext {
-        id: pam
+        id: password
 
         config: "quickshell-lock"
         onCompleted: result => {
-            if (result === PamResult.Success) {
-                sessionLock.locked = false;
-            } else {
+            if (!root.unlockOn(result)) {
                 root.failed = true;
-                pam.start();
+                password.start();
             }
         }
     }
 
-    SystemClock {
-        id: clock
+    PamContext {
+        id: finger
 
-        precision: SystemClock.Minutes
+        config: "quickshell-lock-fingerprint"
+        onCompleted: result => {
+            // a reader that is missing or has no prints ends at once, so the
+            // retries are limited
+            if (!root.unlockOn(result) && root.fingerprintRetries++ < root.maxFingerprintRetries)
+                retry.start();
+        }
+    }
+
+    Timer {
+        id: retry
+
+        interval: 1500
+        onTriggered: if (sessionLock.locked)
+            finger.start()
     }
 
     WlSessionLock {
@@ -47,49 +73,29 @@ Scope {
         onLockedChanged: {
             if (locked) {
                 root.failed = false;
-                pam.start();
+                root.fingerprintRetries = 0;
+                password.start();
+                if (root.fingerprint)
+                    finger.start();
+            } else {
+                retry.stop();
+                password.abort();
+                finger.abort();
             }
         }
 
         WlSessionLockSurface {
-            color: Theme.base00
-
-            Column {
-                anchors.centerIn: parent
-                spacing: 16
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: Qt.formatDateTime(clock.date, "HH:mm")
-                    color: Theme.base05
-                    font.family: Theme.fontMonospace
-                    font.pointSize: Theme.sizeDesktop * 4
-                }
-
-                TextInput {
-                    id: password
-
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 280
-                    horizontalAlignment: TextInput.AlignHCenter
-                    echoMode: TextInput.Password
-                    enabled: pam.responseRequired
-                    focus: true
-                    color: Theme.base05
-                    font.family: Theme.fontMonospace
-                    font.pointSize: Theme.sizeDesktop
-                    onAccepted: {
-                        pam.respond(text);
-                        text = "";
-                    }
-                }
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.failed ? "Wrong password" : pam.message
-                    color: root.failed ? Theme.base08 : Theme.base04
-                    font.family: Theme.fontMonospace
-                    font.pointSize: Theme.sizePopups
+            AuthView {
+                anchors.fill: parent
+                users: [Quickshell.env("USER") ?? ""]
+                user: Quickshell.env("USER") ?? ""
+                inputEnabled: password.responseRequired
+                message: root.failed ? "Wrong password" : (finger.active ? finger.message : "")
+                isError: root.failed || (finger.active && finger.messageIsError)
+                hint: root.fingerprint ? "Password, or touch the fingerprint reader" : ""
+                onSubmitted: text => {
+                    root.failed = false;
+                    password.respond(text);
                 }
             }
         }

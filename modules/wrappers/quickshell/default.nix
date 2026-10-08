@@ -8,6 +8,8 @@
 #                             cannot come from the finished wrapper.
 #   settings.overlays         <Name> -> { qml }, instantiated in shell.qml. Same
 #                             rule as for the bar items.
+#   settings.components       <Name> -> { qml }, in the tree and the qmldir but
+#                             not instantiated. Same rule as for the bar items.
 #   settings.launcherEntries  <name> -> { name, exec, icon }: what the launcher
 #                             offers besides the desktop entries it finds
 #                             itself (Quickshell's DesktopEntries)
@@ -76,6 +78,7 @@ let
         workspaces = _: [ ];
         barItems = _: { };
         overlays = _: { };
+        components = _: { };
         launcherEntries = _: { };
       };
     }
@@ -89,8 +92,9 @@ let
           lib.mapAttrsToList (name: i: i // { inherit name; }) s.barItems
         );
         overlays = lib.attrNames s.overlays;
+        components = lib.attrNames s.components;
         badNames = lib.filter (n: builtins.match "[A-Z][A-Za-z0-9]*" n == null) (
-          map (i: i.name) items ++ overlays
+          map (i: i.name) items ++ overlays ++ components
         );
         inPosition =
           p: lib.concatMapStringsSep "\n" (i: "${i.name} {}") (lib.filter (i: i.position == p) items);
@@ -180,6 +184,7 @@ let
                 ]
                 ++ map (i: i.name) items
                 ++ overlays
+                ++ components
               );
           "Theme.qml" = _: qml.theme t;
           "ShellData.qml" = _: shellData;
@@ -187,7 +192,7 @@ let
           "Bar.qml" =
             _:
             assert lib.assertMsg (badNames == [ ])
-              "quickshell: bar items and overlays are QML types and need a capitalised name: ${toString badNames}";
+              "quickshell: bar items, overlays and components are QML types and need a capitalised name: ${toString badNames}";
             bar;
           "Launcher.qml" = _: ./Launcher.qml;
         };
@@ -211,8 +216,8 @@ in
   # compositor) picks the start command and the launcher key up from there.
   #
   # Comes with what every desktop needs: the shutdown menu (desktop/power.nix),
-  # the lock screen (desktop/lock.nix) and the session basics
-  # (desktop/session.nix).
+  # the lock screen (desktop/lock.nix), the polkit agent (desktop/polkit.nix)
+  # and the session basics (desktop/session.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
@@ -222,13 +227,14 @@ in
             workspaces = _: config.desktop.workspaces;
             barItems = _: config.desktop.bar.items;
             overlays = _: config.desktop.overlays;
+            components = _: config.desktop.components;
             launcherEntries = _: config.desktop.launcher.entries;
           };
         }
         # file names cannot come from the settings, see modules/wrappers/files.nix
         {
           passthru.files = lib.mapAttrs' (name: c: lib.nameValuePair "${name}.qml" (_: c.qml)) (
-            config.desktop.bar.items // config.desktop.overlays
+            config.desktop.bar.items // config.desktop.overlays // config.desktop.components
           );
         }
       ];
@@ -238,6 +244,7 @@ in
         desktop
         desktop-power
         desktop-lock
+        desktop-polkit
         desktop-session
       ];
 
