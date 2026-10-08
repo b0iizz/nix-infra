@@ -15,16 +15,21 @@
 #                        ones the browser ships with
 #   settings.extraPrefs  autoconfig (mozilla.cfg) appended to the browser's own
 #   settings.extensions  `fetchFirefoxAddon` packages installed declaratively,
-#                        or null. Only for LibreWolf: Firefox enforces addon
-#                        signatures and refuses them.
+#                        or null for none (and manual installs stay allowed).
+#                        Only for LibreWolf: Firefox enforces addon signatures
+#                        and refuses them. A list, even an empty one, also
+#                        blocks manual installs.
+#   settings.overrides   `.override` arguments (attrsets or functions) applied
+#                        to the browser last; `wrapper.override` appends one.
 #
 # The result of `wrapFirefox` is a finished wrapper already, so the generic
 # wrapper does not wrap it again (`wrapper.exes = [ ]`); `wrapper.env` and
 # friends therefore have no effect unless `exes` is set.
 #
-# This is not usable as `programs.firefox.package`: that module calls
-# `.override` on its package, which a wrapper derivation does not have. Install
-# the wrapper itself (`flake.modules.nixos.librewolf` does that).
+# The wrapper has `.override` and `.version` like the browser package, so it
+# works as `programs.firefox.package` (note that module's policies file in
+# /etc/firefox shadows the wrapper's own on Firefox). Without that module,
+# `flake.modules.nixos.librewolf` installs the wrapper.
 { self, lib, ... }:
 let
   w = self.lib.wrappers;
@@ -36,6 +41,7 @@ let
         policies = _: { };
         extraPrefs = _: "";
         extensions = _: null;
+        overrides = _: [ ];
       };
       passthru.wrapper.exes = _: [ ];
     }
@@ -43,36 +49,43 @@ let
       final:
       let
         s = final.passthru.settings;
-        package = s.browser.override (
+        package = lib.foldl' (pkg: o: pkg.override o) (s.browser.override (
           {
             extraPolicies = s.policies;
             extraPrefs = s.extraPrefs;
           }
           // lib.optionalAttrs (s.extensions != null) { nixExtensions = s.extensions; }
-        );
+        )) s.overrides;
       in
       {
         passthru.package.__assign = package;
+        passthru.version.__assign = package.version;
+        # `.override` as on the browser package, which is what NixOS'
+        # `programs.firefox` calls: the arguments go to the wrapped browser,
+        # after those from the settings.
+        passthru.override.__assign =
+          o: final.passthru.extend { passthru.settings.overrides = old: old ++ [ o ]; };
         meta.__assign = package.meta or { };
       }
     )
   ];
 
-  # The DuckDuckGo search is themed like the desktop. These are the colours
-  # (catppuccin-mocha, base16) and the monospace font of the system theme.
-  ddg = {
-    font = "DejaVuSansM Nerd Font Mono";
-    colors = {
-      base00 = "1e1e2e";
-      base01 = "181825";
-      base04 = "585b70";
-      base05 = "cdd6f4";
-    };
-  };
-
-  ddgUrl =
-    with ddg.colors;
-    "https://duckduckgo.com/?kaj=m&kbg=-1&kbe=0&kbi=1&kbj=1&kp=-2&kav=1&k1=-1&kt=${lib.escapeURL ddg.font}&kae=d&k7=${base00}&kj=${base01}&k9=${base05}&kaa=${base04}&k8=${base05}&kx=${base05}&k21=${base01}&q={searchTerms}";
+  # Styling is off for now. To theme DuckDuckGo like the desktop, swap
+  # `ddgUrl` for the themed one below (catppuccin-mocha, base16, and the
+  # monospace font of the system theme).
+  ddgUrl = "https://duckduckgo.com/?q={searchTerms}";
+  # ddg = {
+  #   font = "DejaVuSansM Nerd Font Mono";
+  #   colors = {
+  #     base00 = "1e1e2e";
+  #     base01 = "181825";
+  #     base04 = "585b70";
+  #     base05 = "cdd6f4";
+  #   };
+  # };
+  # ddgUrl =
+  #   with ddg.colors;
+  #   "https://duckduckgo.com/?kaj=m&kbg=-1&kbe=0&kbi=1&kbj=1&kp=-2&kav=1&k1=-1&kt=${lib.escapeURL ddg.font}&kae=d&k7=${base00}&kj=${base01}&k9=${base05}&kaa=${base04}&k8=${base05}&kx=${base05}&k21=${base01}&q={searchTerms}";
 
   personal = {
     passthru.settings = {
@@ -248,19 +261,11 @@ let
     };
   };
 
-  librewolf = pkgs: {
-    passthru.settings.extensions = _: [
-      (pkgs.fetchFirefoxAddon {
-        name = "ublock"; # Has to be unique!
-        url = "https://addons.mozilla.org/firefox/downloads/file/4629131/ublock_origin-1.68.0.xpi";
-        hash = "sha256-XK9KvaSUAYhBIioSFWkZu92MrYKng8OMNrIt1kJwQxU=";
-      })
-      (pkgs.fetchFirefoxAddon {
-        name = "bitwarden"; # Has to be unique!
-        url = "https://addons.mozilla.org/firefox/downloads/file/4664623/bitwarden_password_manager-2025.12.1.xpi";
-        hash = "sha256-p6Ej7uTkD92K98DGckNzHdzDeuFJjPKCiZX0kFYAxR8=";
-      })
-    ];
+  # Declarative extensions: other modules add theirs with
+  #   passthru.settings.extensions = old: old ++ [ (pkgs.fetchFirefoxAddon { ... }) ];
+  # uBlock Origin needs no entry: LibreWolf's policies.json installs it.
+  librewolf = {
+    passthru.settings.extensions = _: [ ];
   };
 in
 {
@@ -271,7 +276,7 @@ in
         (w.program (program pkgs.librewolf))
         (lib.mkAfter [
           personal
-          (librewolf pkgs)
+          librewolf
         ])
       ];
       wrappers.firefox = lib.mkMerge [
