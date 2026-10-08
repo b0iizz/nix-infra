@@ -278,8 +278,8 @@ in
           };
           expected = {
             launcher = true;
-            # the shell and the wallpaper daemon
-            startup = 2;
+            # the shell, the wallpaper daemon and the default wallpaper
+            startup = 3;
           };
         };
         testFingerprint = {
@@ -343,6 +343,13 @@ in
             grep -q 'bin/awww"' $tree/WallpaperPicker.qml
             grep -q '"--transition-type","grow"' $tree/WallpaperPicker.qml
             ! grep -q 'WALLPAPER_DIRECTORY\|AWWW_BIN\|TRANSITION_ARGS' $tree/WallpaperPicker.qml
+
+            # everything started with the session exists
+            ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") full.desktop.startup}
+
+            # the picker offers the fetched collection, and the default is in it
+            grep -qF '${full.desktop.wallpaper.directory}' $tree/WallpaperPicker.qml
+            test -e '${full.desktop.wallpaper.default}'
             grep -q 'AuthView' $tree/qmldir
             grep -q 'AuthView {' $tree/LockScreen.qml
             grep -q 'AuthForm {' $tree/PolkitAgent.qml
