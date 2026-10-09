@@ -330,10 +330,7 @@ let
     let
       matching = filter (z: d == z || hasSuffix ".${z}" d) (attrNames cfg.zones);
     in
-    if matching == [ ] then
-      null
-    else
-      lib.last (lib.sortOn stringLength matching);
+    if matching == [ ] then null else lib.last (lib.sortOn stringLength matching);
 
   # A name the wildcard certificate of `zone` is valid for.
   wildcardCovers =
@@ -590,9 +587,7 @@ let
       httpRoutes = filter (r: r.protocol == "http") routes;
       acmeRoutes = filter (r: r.cert.kind == "acme") httpRoutes;
       originZones = unique (
-        lib.remove null (
-          map (r: r.cert.zone) (filter (r: r.cert.kind == "cloudflare-origin") httpRoutes)
-        )
+        lib.remove null (map (r: r.cert.zone) (filter (r: r.cert.kind == "cloudflare-origin") httpRoutes))
       );
 
       tlsFor =

@@ -170,7 +170,7 @@ in
             shopt -s nullglob
             local f
             for f in "$master_dir"/*.pub; do recipient_args+=(-R "$f"); done
-            for f in "$master_dir"/*.age-identity; do identity_args+=(-i "$f"); done
+            for f in "$master_dir"/*.hmac; do identity_args+=(-i "$f"); done
             shopt -u nullglob
           }
 
@@ -181,7 +181,7 @@ in
             age=$(age_path "$1")
             [ -f "$age" ] || die "$1: no key at $age (run: host-keys generate $1)"
             load_master
-            [ ''${#identity_args[@]} -gt 0 ] || die "no *.age-identity in $master_dir"
+            [ ''${#identity_args[@]} -gt 0 ] || die "no *.hmac in $master_dir"
             info "$1: touch your token if it blinks"
             rage -d "''${identity_args[@]}" "$age"
           }

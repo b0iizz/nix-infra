@@ -59,7 +59,7 @@ withInputs
             age.rekey = {
               masterIdentities = [
                 {
-                  identity = top.config.registry.secretsDir + "/master/fido2.age-identity";
+                  identity = top.config.registry.secretsDir + "/master/fido2-identity.hmac";
                   pubkey = lib.fileContents (top.config.registry.secretsDir + "/master/fido2.pub");
                 }
               ];
