@@ -82,9 +82,23 @@
         }
       );
 
-      desktop.launcher.entries = lib.mapAttrs' (
-        id: a: lib.nameValuePair "power-${id}" { inherit (a) name exec confirm; }
-      ) config.desktop.power.actions;
+      desktop.launcher.entries =
+        lib.mapAttrs' (
+          id: a: lib.nameValuePair "power-${id}" { inherit (a) name exec confirm; }
+        ) config.desktop.power.actions
+        # the menu itself, next to the actions it lists
+        // {
+          power-menu = {
+            name = "Power menu";
+            exec = [
+              "quickshell"
+              "ipc"
+              "call"
+              "powermenu"
+              "toggle"
+            ];
+          };
+        };
 
       desktop.overlays.PowerMenu.qml = ./PowerMenu.qml;
       desktop.data.powerActions = map (a: { inherit (a) name exec confirm; }) actions;

@@ -297,8 +297,10 @@ in
           };
           expected = {
             entries = [
+              "network-menu"
               "power-lock"
               "power-logout"
+              "power-menu"
               "power-poweroff"
               "power-reboot"
               "power-suspend"
@@ -388,6 +390,9 @@ in
               networkMenu = lib.elem "NetworkMenu" overlays;
               wifiMenu = lib.elem "WifiMenu" overlays;
               wifiMenuWhenOn = lib.elem "WifiMenu" (lib.attrNames (quickshell menus).overlays);
+              # and so does its launcher entry
+              wifiEntry = (quickshell c).launcherEntries ? wifi-menu;
+              wifiEntryWhenOn = (quickshell menus).launcherEntries ? wifi-menu;
             };
           expected = {
             clock = false;
@@ -397,6 +402,8 @@ in
             networkMenu = true;
             wifiMenu = false;
             wifiMenuWhenOn = true;
+            wifiEntry = false;
+            wifiEntryWhenOn = true;
           };
         };
         # the idle daemon is on, the battery warnings follow the hardware; both can be switched
@@ -497,7 +504,9 @@ in
           };
           expected = {
             entries = [
+              "network-menu"
               "power-lock"
+              "power-menu"
               "power-poweroff"
               "power-reboot"
               "power-suspend"

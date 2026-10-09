@@ -71,6 +71,26 @@
         (lib.mkIf items.Bluetooth.enable { BluetoothMenu.qml = ./BluetoothMenu.qml; })
       ];
 
+      # and the same menus from the launcher, for what has no bar widget to click
+      desktop.launcher.entries =
+        let
+          menu = name: target: {
+            inherit name;
+            exec = [
+              "quickshell"
+              "ipc"
+              "call"
+              target
+              "toggle"
+            ];
+          };
+        in
+        lib.mkMerge [
+          (lib.mkIf items.Network.enable { network-menu = menu "Network" "networkmenu"; })
+          (lib.mkIf items.Wifi.enable { wifi-menu = menu "Wifi" "wifimenu"; })
+          (lib.mkIf items.Bluetooth.enable { bluetooth-menu = menu "Bluetooth" "bluetoothmenu"; })
+        ];
+
       # what the widgets read from
       hardware.bluetooth.enable = lib.mkIf items.Bluetooth.enable (lib.mkDefault true);
       services.upower.enable = lib.mkIf items.Battery.enable (lib.mkDefault true);
