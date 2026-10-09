@@ -1,7 +1,8 @@
-// Bar item: whether any connection is up, and "vpn" while a VPN is. NetworkManager's
-// VPNs and WireGuard interfaces count; Quickshell.Networking doesn't know either,
-// so they are polled.
+// Bar item: whether any connection is up, and "vpn" while a VPN is; right
+// click opens NetworkMenu. NetworkManager's VPNs and WireGuard interfaces
+// count; Quickshell.Networking doesn't know either, so they are polled.
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 
@@ -15,6 +16,12 @@ Text {
     color: online ? Theme.base05 : Theme.base08
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: Quickshell.execDetached(["quickshell", "ipc", "call", "networkmenu", "toggle"])
+    }
 
     Process {
         id: probe

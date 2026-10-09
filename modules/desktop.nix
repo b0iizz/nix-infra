@@ -304,6 +304,7 @@ in
             ];
             overlays = [
               "LockScreen"
+              "NetworkMenu"
               "Notifications"
               "PolkitAgent"
               "PowerMenu"
@@ -363,18 +364,27 @@ in
                 desktop.bar.items.Battery.enable = true;
               } [ "quickshell" ];
               items = lib.attrNames (quickshell c).barItems;
+              overlays = lib.attrNames (quickshell c).overlays;
+              menus = hostWith { desktop.bar.items.Wifi.enable = true; } [ "quickshell" ];
             in
             {
               clock = lib.elem "Clock" items;
               battery = lib.elem "Battery" items;
               upower = c.services.upower.enable;
               wifi = lib.elem "Wifi" items;
+              # a menu goes with its widget
+              networkMenu = lib.elem "NetworkMenu" overlays;
+              wifiMenu = lib.elem "WifiMenu" overlays;
+              wifiMenuWhenOn = lib.elem "WifiMenu" (lib.attrNames (quickshell menus).overlays);
             };
           expected = {
             clock = false;
             battery = true;
             upower = true;
             wifi = false;
+            networkMenu = true;
+            wifiMenu = false;
+            wifiMenuWhenOn = true;
           };
         };
         testShellAlone = {

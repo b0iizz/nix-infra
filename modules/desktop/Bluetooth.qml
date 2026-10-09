@@ -1,7 +1,8 @@
-// Bar item: bluetooth state and the number of connected devices; click
-// switches the adapter. Only on hosts with a bluetooth controller
-// (modules/desktop/widgets.nix).
+// Bar item: bluetooth state and the number of connected devices; left click
+// switches the adapter, right click opens BluetoothMenu. Only on hosts with a
+// bluetooth controller (modules/desktop/widgets.nix).
 import QtQuick
+import Quickshell
 import Quickshell.Bluetooth
 
 Text {
@@ -16,6 +17,12 @@ Text {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: adapter.enabled = !adapter.enabled
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: e => {
+            if (e.button === Qt.RightButton)
+                Quickshell.execDetached(["quickshell", "ipc", "call", "bluetoothmenu", "toggle"]);
+            else
+                adapter.enabled = !adapter.enabled;
+        }
     }
 }

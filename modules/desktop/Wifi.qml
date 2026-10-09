@@ -1,6 +1,7 @@
-// Bar item: the wifi network and its signal. Only on hosts with a wifi
-// interface (modules/desktop/widgets.nix).
+// Bar item: the wifi network and its signal; right click opens WifiMenu. Only
+// on hosts with a wifi interface (modules/desktop/widgets.nix).
 import QtQuick
+import Quickshell
 import Quickshell.Networking
 
 Text {
@@ -11,4 +12,10 @@ Text {
     color: network ? Theme.base05 : Theme.base03
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: Quickshell.execDetached(["quickshell", "ipc", "call", "wifimenu", "toggle"])
+    }
 }

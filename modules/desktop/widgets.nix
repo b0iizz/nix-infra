@@ -60,6 +60,17 @@
         };
       };
 
+      # the right click menus; a widget that is off leaves its menu out as well
+      desktop.components = {
+        Menu.qml = ./Menu.qml;
+        MenuRow.qml = ./MenuRow.qml;
+      };
+      desktop.overlays = lib.mkMerge [
+        (lib.mkIf items.Network.enable { NetworkMenu.qml = ./NetworkMenu.qml; })
+        (lib.mkIf items.Wifi.enable { WifiMenu.qml = ./WifiMenu.qml; })
+        (lib.mkIf items.Bluetooth.enable { BluetoothMenu.qml = ./BluetoothMenu.qml; })
+      ];
+
       # what the widgets read from
       hardware.bluetooth.enable = lib.mkIf items.Bluetooth.enable (lib.mkDefault true);
       services.upower.enable = lib.mkIf items.Battery.enable (lib.mkDefault true);
