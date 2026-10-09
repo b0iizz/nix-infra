@@ -55,6 +55,9 @@ withInputs
               # a laptop gets lost: the disk is encrypted, swap and the
               # hibernation image with it
               disko-layouts.luks.enable = true;
+              # opened with the FIDO2 token (enrolled by `provision commit
+              # --local`); the recovery keys it prints are the way in without it
+              disko-layouts.luks.fido2 = true;
 
               hardware.fw-fanctrl.enable = true;
               services.hardware.bolt.enable = true;

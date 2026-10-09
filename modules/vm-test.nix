@@ -45,6 +45,9 @@ in
                     disko.devices.disk.root.device = lib.mkForce "/dev/vda";
                     disko-layouts.ramBytes = lib.mkForce (512 * 1024 * 1024);
                     disko-layouts.swap.size = lib.mkForce (256 * 1024 * 1024);
+                    # ponytail: the VM has no token, so it tests the passphrase path; a canokey
+                    # device (nixos/tests/systemd-initrd-luks-fido2.nix) would test this one
+                    disko-layouts.luks.fido2 = lib.mkForce false;
 
                     boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
                     boot.initrd.availableKernelModules = [
@@ -93,6 +96,7 @@ in
                       )
                     } ;;
                   *.luks.enable) echo ${lib.boolToString luks.enable} ;;
+                  *.luks.fido2) echo ${lib.boolToString luks.fido2} ;;
                   *.luks.passwordFile) echo ${luks.passwordFile} ;;
                   *.toplevel) echo ${tc.toplevel} ;;
                   *'#host-key-cli'*) mkdir -p "''${*: -1}/etc/ssh" && cp /tmp/key/* "''${*: -1}/etc/ssh/" ;;

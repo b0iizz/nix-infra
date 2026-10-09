@@ -90,17 +90,18 @@ withInputs
         config: rootContent:
         let
           cfg = config.disko-layouts;
-          # swap and root each in a LUKS volume of their own, with the same
-          # passphrase: the initrd asks once and tries it on both
+          # swap and root each in a LUKS volume of their own. With a passphrase
+          # the initrd asks once and tries it on both; with FIDO2 each volume
+          # is enrolled on its own (two PIN/touch prompts, also at boot).
           encrypted =
             name: content:
             if cfg.luks.enable then
               {
                 type = "luks";
                 inherit name content;
-                passwordFile = cfg.luks.passwordFile;
                 settings.allowDiscards = true;
               }
+              // (if cfg.luks.fido2 then { enrollFido2 = true; } else { passwordFile = cfg.luks.passwordFile; })
             else
               content;
         in
@@ -235,7 +236,20 @@ withInputs
                   Encrypt the root filesystem and the swap partition, and so the
                   hibernation image, with LUKS2 (root layouts only). The passphrase
                   is asked for once at boot. `provision commit` asks for it and
-                  hands it to disko, nothing keeps it.
+                  hands it to disko, nothing keeps it. See `fido2` for a token.
+                '';
+              };
+
+              fido2 = mkOption {
+                type = types.bool;
+                default = false;
+                description = ''
+                  Unlock with a FIDO2 token instead of a passphrase. disko enrolls
+                  the token while `provision commit --local` formats (it waits for
+                  the token, then asks for its PIN and a touch) and prints a
+                  recovery key per volume: that key is the only way in without
+                  the token, so store it. Needs `luks.enable`. A remote commit
+                  refuses it: the token would have to sit in the target.
                 '';
               };
 
@@ -319,6 +333,10 @@ withInputs
                 }, which contradict; import only one of them (raid and data can instead be moved apart with their `mountpoint` option).";
               }) byMountpoint
               ++ [
+                {
+                  assertion = !cfg.luks.fido2 || cfg.luks.enable;
+                  message = "disko-layouts: luks.fido2 is set but luks.enable is not.";
+                }
                 {
                   assertion = cfg.swap.bytes == 0 || lib.any (c: c.mountpoint == "/") cfg.claims;
                   message = "disko-layouts: swap.size/swap.hibernation are set but no root layout (disko-root-*) is imported to apply them.";

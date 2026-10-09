@@ -468,8 +468,13 @@ withInputs
                 # An encrypted root needs its passphrase while disko formats.
                 luks_path=
                 if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.enable" 2>/dev/null)" = true ]; then
-                  luks_path=$(nix eval --raw "$root#nixosConfigurations.$h.config.disko-layouts.luks.passwordFile")
-                  read_passphrase "$h" "$tmp/luks.key"
+                  if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.fido2" 2>/dev/null)" = true ]; then
+                    # disko enrolls the token itself while it formats
+                    [ "$mode" = local ] || die "$h: luks.fido2 needs the token in the machine being installed; use commit --local"
+                  else
+                    luks_path=$(nix eval --raw "$root#nixosConfigurations.$h.config.disko-layouts.luks.passwordFile")
+                    read_passphrase "$h" "$tmp/luks.key"
+                  fi
                 fi
 
                 if [ "$mode" = remote ]; then
