@@ -225,7 +225,8 @@ in
   # the notification daemon (desktop/notifications.nix), the idle daemon
   # (desktop/idle.nix), the low battery warnings (desktop/battery.nix), the
   # status widgets (desktop/widgets.nix), the wallpaper daemon and picker (desktop/wallpaper.nix) and the session
-  # basics (desktop/session.nix).
+  # basics (desktop/session.nix) and the look of GTK and Qt programs
+  # (desktop/theme.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
@@ -261,6 +262,7 @@ in
         desktop-widgets
         desktop-wallpaper
         desktop-session
+        desktop-theme
       ];
 
       environment.systemPackages = [ quickshell ];

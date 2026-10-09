@@ -1,13 +1,7 @@
 # What every desktop session needs, whichever compositor and shell it has.
 # Imported by the quickshell role. Everything is `mkDefault`, hosts override.
-#
-# GTK programs (LibreWolf, Evince, LibreOffice) take light or dark from the
-# portal, which reads it from dconf; Adwaita has both, and its cursors are the
-# compositor's and the programs' `default`.
-{ self, lib, ... }@flake:
-let
-  dark = flake.config.theme.polarity == "dark";
-in
+# How GTK and Qt programs look is modules/desktop/theme.nix.
+{ self, lib, ... }:
 {
   flake.modules.nixos.desktop-session =
     { pkgs, ... }:
@@ -25,11 +19,12 @@ in
         brightnessctl
         playerctl
         wireplumber
-        # icons and the cursors of `xdg.icons.fallbackCursorThemes`
+        # icons, and the cursors of `xdg.icons.fallbackCursorThemes` (the greeter's too)
         adwaita-icon-theme
       ];
 
       services.udev.packages = [ pkgs.brightnessctl ];
+      xdg.icons.fallbackCursorThemes = lib.mkDefault [ "Adwaita" ];
 
       security.polkit.enable = lib.mkDefault true;
       security.rtkit.enable = lib.mkDefault true;
@@ -44,17 +39,5 @@ in
         nerd-fonts.dejavu-sans-mono
         noto-fonts-color-emoji
       ];
-
-      programs.dconf.enable = true;
-      programs.dconf.profiles.user.databases = [
-        {
-          settings."org/gnome/desktop/interface" = {
-            color-scheme = if dark then "prefer-dark" else "prefer-light";
-            gtk-theme = if dark then "Adwaita-dark" else "Adwaita";
-            cursor-theme = "Adwaita";
-          };
-        }
-      ];
-      xdg.icons.fallbackCursorThemes = lib.mkDefault [ "Adwaita" ];
     };
 }
