@@ -1,7 +1,7 @@
 # Shutdown menu and shutdown launcher entries. Imported by the quickshell role.
 #
 # The actions are `desktop.power.actions` (modules/desktop.nix): shut down,
-# reboot and suspend are set here, a compositor role adds its own log out.
+# reboot and suspend are set here, and log out once there is a session.
 # Every action is a launcher entry, and the same list is the menu that
 # `quickshell ipc call powermenu toggle` opens and the bar button toggles.
 { self, lib, ... }:
@@ -54,6 +54,20 @@
           order = 30;
         };
       };
+
+      # works for any compositor: logind ends the session and with it the compositor
+      desktop.power.actions.logout = lib.mkIf (config.desktop.sessions != { }) (
+        lib.mkDefault {
+          name = "Log out";
+          exec = [
+            "sh"
+            "-c"
+            ''loginctl terminate-session "$XDG_SESSION_ID"''
+          ];
+          order = 40;
+          confirm = true;
+        }
+      );
 
       desktop.launcher.entries = lib.mapAttrs' (
         id: a: lib.nameValuePair "power-${id}" { inherit (a) name exec confirm; }

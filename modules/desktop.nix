@@ -23,7 +23,7 @@
 #   desktop.power.actions     { name, exec (argv), order, confirm }  shut down, log out, ...
 #   desktop.data              values for the shell's QML (ShellData.<name>)
 #   desktop.lock.command      argv that locks the screen, if there is a lock screen
-#   desktop.session           argv that starts the graphical session (for a greeter)
+#   desktop.sessions          { name, exec (argv), order }  sessions a greeter offers
 #   desktop.startup         commands the compositor starts with the session
 #   desktop.launcherCommand   command that toggles the launcher, if there is one
 {
@@ -161,10 +161,22 @@ in
         default = [ ];
       };
 
-      session = mkOption {
-        type = types.nullOr (types.listOf types.str);
-        default = null;
-        description = "Command that starts the graphical session, set by the compositor role.";
+      sessions = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options = {
+              name = mkOption { type = types.str; };
+              exec = mkOption { type = types.listOf types.str; };
+              order = mkOption {
+                type = types.int;
+                default = 100;
+                description = "The first session by order is the greeter's default.";
+              };
+            };
+          }
+        );
+        default = { };
+        description = "Graphical sessions to log in to, one per compositor role.";
       };
 
       launcherCommand = mkOption {
@@ -214,6 +226,12 @@ in
       shellOnly = host [ "quickshell" ];
       withGreeter = host [
         "hyprland"
+        "greeter"
+      ];
+      twoCompositors = host [
+        "hyprland"
+        "niri"
+        "quickshell"
         "greeter"
       ];
       noReader = hostWith { desktop.fingerprint = false; } [
@@ -333,6 +351,24 @@ in
             lockReaderService = false;
           };
         };
+        # the compositors don't collide: both are sessions, there is one log out
+        testTwoCompositors = {
+          expr = {
+            sessions = map (s: s.name) (
+              lib.sortOn (s: s.order) (lib.attrValues twoCompositors.desktop.sessions)
+            );
+            logout = lib.attrNames (lib.filterAttrs (n: _: n == "logout") twoCompositors.desktop.power.actions);
+            niriLauncher = twoCompositors.programs.niri.package.passthru.settings.launcher != null;
+          };
+          expected = {
+            sessions = [
+              "Hyprland"
+              "niri"
+            ];
+            logout = [ "logout" ];
+            niriLauncher = true;
+          };
+        };
         testHyprlandAlone = {
           expr = {
             launcher = (hypr hyprOnly).launcher;
@@ -379,6 +415,13 @@ in
             gtree=$(grep -o "path /nix/store/[^ ']*" $greeter | head -1 | cut -d' ' -f2)
             grep -q '"joni"' $gtree/GreeterData.qml
             grep -q 'bin/start-hyprland' $gtree/GreeterData.qml
+
+            # with two compositors the greeter offers both, hyprland first
+            g2=${lib.last (lib.splitString " " twoCompositors.services.greetd.settings.default_session.command)}
+            g2tree=$(grep -o "path /nix/store/[^ ']*" $g2 | head -1 | cut -d' ' -f2)
+            grep -q 'start-hyprland.*niri-session' $g2tree/GreeterData.qml
+            # the session of the niri wrapper finds its config
+            grep -q 'NIRI_CONFIG' ${lib.getExe' twoCompositors.programs.niri.package "niri-session"}
 
             # the lock screen and the login screen are the same files
             cmp $tree/AuthView.qml $gtree/AuthView.qml

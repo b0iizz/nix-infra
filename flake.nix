@@ -42,6 +42,10 @@
       url = "github:nix-community/nixos-facter";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nixos-hardware = {
+      url = "github:NixOS/nixos-hardware";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nixos-images = {
       url = "github:nix-community/nixos-images";
       inputs.nixos-unstable.follows = "nixpkgs";

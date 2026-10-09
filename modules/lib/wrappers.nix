@@ -199,9 +199,15 @@ withInputs
           pkgs: name: exts:
           extendWith (mkBase pkgs name) exts;
 
-        # Sets the wrapped package (and the meta that follows from it).
+        # Sets the wrapped package (and what follows from it: its meta and the
+        # sessions it provides, which the display manager module checks for).
         withPackage = package: {
-          passthru.package.__assign = package;
+          passthru = {
+            package.__assign = package;
+          }
+          // lib.optionalAttrs (package ? providedSessions) {
+            providedSessions.__assign = package.providedSessions;
+          };
           meta.__assign = package.meta or { };
         };
 

@@ -11,7 +11,13 @@
     {
       key = "modules/desktop/auth.nix";
 
-      imports = [ self.modules.nixos.desktop ];
+      imports = with self.modules.nixos; [
+        desktop
+        persist
+      ];
+
+      # the enrolled fingerprints
+      persist.directories = lib.optional config.services.fprintd.enable "/var/lib/fprint";
 
       desktop.components.AuthForm.qml = ./AuthForm.qml;
       desktop.components.AuthView.qml = ./AuthView.qml;

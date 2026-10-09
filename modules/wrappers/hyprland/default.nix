@@ -244,7 +244,8 @@ in
   # that reads session files starts Hyprland without this config until it is
   # rewritten like `fixDesktopEntries` does for share/applications;
   # `providedSessions` is not forwarded either. The `greeter` role is not
-  # affected: it runs `desktop.session`, the wrapped command, directly.
+  # affected: it runs the session of `desktop.sessions`, the wrapped command,
+  # directly.
   flake.modules.nixos.hyprland =
     { config, pkgs, ... }:
     let
@@ -255,6 +256,11 @@ in
 
       programs.hyprland = {
         enable = true;
+        # The module would rebuild the portal against the wrapper, for a PATH
+        # entry. An `override` without a `hyprland` argument keeps the cached one.
+        portalPackage = pkgs.xdg-desktop-portal-hyprland // {
+          override = _: pkgs.xdg-desktop-portal-hyprland;
+        };
         package = hyprland.extend {
           passthru.settings = {
             startup = old: old ++ config.desktop.startup;
@@ -269,17 +275,10 @@ in
         monitor = r.monitor or null;
       }) hyprland.passthru.settings.workspaces;
 
-      desktop.session = [ (lib.getExe' config.programs.hyprland.package "start-hyprland") ];
-
-      desktop.power.actions.logout = {
-        name = "Log out";
-        exec = [
-          "hyprctl"
-          "dispatch"
-          "hl.dsp.exit()"
-        ];
-        order = 40;
-        confirm = true;
+      desktop.sessions.hyprland = {
+        name = "Hyprland";
+        exec = [ (lib.getExe' config.programs.hyprland.package "start-hyprland") ];
+        order = lib.mkDefault 10;
       };
 
       desktop.bar.items.Workspaces = {

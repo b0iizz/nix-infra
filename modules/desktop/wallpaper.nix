@@ -58,7 +58,10 @@
     {
       key = "modules/desktop/wallpaper.nix";
 
-      imports = [ self.modules.nixos.desktop ];
+      imports = with self.modules.nixos; [
+        desktop
+        persist
+      ];
 
       options.desktop.wallpaper = {
         directory = lib.mkOption {
@@ -109,6 +112,9 @@
       };
 
       config = {
+        # the daemon's memory of the last image
+        persist.home.directories = [ ".cache/awww" ];
+
         desktop.startup = [
           (lib.getExe' pkgs.awww "awww-daemon")
         ]

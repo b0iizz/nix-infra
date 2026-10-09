@@ -65,7 +65,7 @@
     sudoNeedsPassword = true;
     perHostPasswords = true;
     # Added to all users of hosts with that role.
-    roleGroups.desktop = [
+    roleGroups.workstation = [
       "networkmanager"
       "audio"
       "video"

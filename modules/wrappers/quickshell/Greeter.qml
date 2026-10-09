@@ -1,6 +1,6 @@
 // Login screen for greetd. It runs as an ordinary fullscreen window inside a
 // kiosk compositor (cage), asks greetd to authenticate the chosen user and
-// starts `GreeterData.session` once that worked. What it shows is the AuthView
+// starts the chosen one of `GreeterData.sessions` once that worked. What it shows is the AuthView
 // of the lock screen.
 //
 // With a fingerprint reader greetd's PAM stack asks for the password first and
@@ -19,6 +19,7 @@ FloatingWindow {
     property bool failed: false
     property bool inputEnabled: false
     property bool echo: false
+    property int session: 0
 
     function begin(name) {
         restart.stop();
@@ -52,7 +53,7 @@ FloatingWindow {
         }
 
         function onReadyToLaunch() {
-            Greetd.launch(GreeterData.session, ["XDG_SESSION_TYPE=wayland"]);
+            Greetd.launch(GreeterData.sessions[window.session].exec, ["XDG_SESSION_TYPE=wayland"]);
         }
     }
 
@@ -80,6 +81,36 @@ FloatingWindow {
         onUserChosen: name => {
             window.failed = false;
             window.begin(name);
+        }
+    }
+
+    // only worth showing when there is a choice
+    Row {
+        visible: GreeterData.sessions.length > 1
+        anchors {
+            bottom: parent.bottom
+            bottomMargin: 32
+            horizontalCenter: parent.horizontalCenter
+        }
+        spacing: 16
+
+        Repeater {
+            model: GreeterData.sessions
+
+            Text {
+                required property var modelData
+                required property int index
+
+                text: modelData.name
+                color: index === window.session ? Theme.base0D : Theme.base04
+                font.family: Theme.fontMonospace
+                font.pointSize: Theme.sizeDesktop
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: window.session = parent.index
+                }
+            }
         }
     }
 }

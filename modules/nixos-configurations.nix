@@ -36,6 +36,7 @@ let
       networking.hostName = host.hostName;
       nixpkgs.hostPlatform = host.system;
       system.stateVersion = host.stateVersion;
+      hardware.facter.reportPath = lib.mkIf (host.facter.reportPath != null) host.facter.reportPath;
       users.users.root.openssh.authorizedKeys.keys = config.registry.rootKeys;
       assertions = [
         {

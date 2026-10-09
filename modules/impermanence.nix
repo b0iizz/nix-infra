@@ -2,13 +2,14 @@
 # github:nix-community/preservation. That layout imports this module; hosts
 # on other layouts never see it.
 #
-# Besides /etc/machine-id (journald's logs in /var/log are keyed by it), the
-# home-relative paths wrappers ask for are kept for every normal user: each
+# Besides /etc/machine-id (journald's logs in /var/log are keyed by it), it
+# keeps what roles and the host declare in `persist.*` (modules/persist.nix)
+# and the home-relative paths wrappers ask for, for every normal user: each
 # package in `environment.systemPackages` or the user's `packages` may carry
 # `passthru.persist.{directories,files}` (see modules/wrappers/persist.nix).
-# Anything else system-wide is declared on the host:
 #
-#   preservation.preserveAt."/persist".directories = [ "/var/lib/foo" ];
+#   persist.directories = [ "/var/lib/foo" ];
+#   persist.home.directories = [ "Documents" ];
 { withInputs, ... }:
 withInputs { preservation.url = "github:nix-community/preservation"; } (
   { inputs, ... }:
@@ -24,20 +25,22 @@ withInputs { preservation.url = "github:nix-community/preservation"; } (
         preservation = {
           enable = true;
           preserveAt.${config.disko-layouts.impermanence.persistDir} = {
+            directories = config.persist.directories;
             files = [
               {
                 file = "/etc/machine-id";
                 inInitrd = true;
               }
-            ];
+            ]
+            ++ config.persist.files;
             users = lib.mapAttrs (
               _: u:
               let
                 pkgs = config.environment.systemPackages ++ u.packages;
               in
               {
-                directories = asked "directories" pkgs;
-                files = asked "files" pkgs;
+                directories = lib.unique (asked "directories" pkgs ++ config.persist.home.directories);
+                files = lib.unique (asked "files" pkgs ++ config.persist.home.files);
               }
             ) (lib.filterAttrs (_: u: u.isNormalUser) config.users.users);
           };

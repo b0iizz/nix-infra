@@ -3,12 +3,13 @@
 # the shell. It authenticates through greetd and then runs the session command.
 #
 #   settings.users    names to offer
-#   settings.session  argv that starts the session (greetd runs it as the user)
+#   settings.sessions [ { name, exec } ] to choose from, the first is the default
+#                     (greetd runs the argv as the user)
 #   settings.fingerprint  mention the reader in the hint
 #   settings.wallpaper    image shown behind the form, null for none
 #
 # The role `greeter` fills these from the host: its normal users and
-# `desktop.session`, which the compositor role sets. As that is the wrapped
+# `desktop.sessions`, which the compositor roles fill. As each is the wrapped
 # compositor's own start command, logging in starts it with its config, no
 # session file involved.
 #
@@ -24,7 +25,7 @@ let
     {
       passthru.settings = {
         users = _: [ ];
-        session = _: [ ];
+        sessions = _: [ ];
         fingerprint = _: false;
         wallpaper = _: null;
       };
@@ -63,9 +64,11 @@ let
             qml.singleton (
               lib.concatStringsSep "\n" [
                 (qml.property "var" "users" (builtins.toJSON s.users))
-                (qml.property "var" "session" (builtins.toJSON s.session))
+                (qml.property "var" "sessions" (builtins.toJSON s.sessions))
                 (qml.property "bool" "fingerprint" (lib.boolToString s.fingerprint))
-                (qml.property "string" "wallpaper" (builtins.toJSON (if s.wallpaper == null then "" else s.wallpaper)))
+                (qml.property "string" "wallpaper" (
+                  builtins.toJSON (if s.wallpaper == null then "" else s.wallpaper)
+                ))
               ]
             );
           "Greeter.qml" = _: ./Greeter.qml;
@@ -92,7 +95,13 @@ in
       greeter = self.packages.${pkgs.stdenv.hostPlatform.system}.quickshell-greeter.extend {
         passthru.settings = {
           users = _: lib.attrNames (lib.filterAttrs (_: u: u.isNormalUser) config.users.users);
-          session = _: config.desktop.session;
+          sessions =
+            _:
+            map (s: { inherit (s) name exec; }) (
+              lib.sort (a: b: a.order < b.order || (a.order == b.order && a.name < b.name)) (
+                lib.attrValues config.desktop.sessions
+              )
+            );
           fingerprint = _: config.desktop.fingerprint;
           wallpaper = _: config.desktop.wallpaper.default;
         };
@@ -116,8 +125,8 @@ in
 
       assertions = [
         {
-          assertion = config.desktop.session != null;
-          message = "the greeter role needs a compositor role that sets `desktop.session` (hyprland)";
+          assertion = config.desktop.sessions != { };
+          message = "the greeter role needs a compositor role that adds to `desktop.sessions` (hyprland, niri)";
         }
       ];
 
