@@ -1,5 +1,7 @@
 // Bluetooth menu: click a device to connect to it or, when it is connected, to
-// disconnect. A device not paired yet is paired through bluetoothctl, as
+// disconnect. Pairing and connecting show a view of their own with only that
+// device (its questions, its progress, Cancel or Back), and the list returns
+// when they are done. A device not paired yet is paired through bluetoothctl, as
 // Quickshell has no Bluetooth agent: the menu answers its questions (confirm
 // a passkey, type a PIN) and shows the code a device wants typed on its side.
 // A paired device is trusted and connected right away. The top line switches
@@ -27,6 +29,10 @@ Menu {
         property var pairing: null
         property string message: ""
         property string waitingFor: ""
+        // a paired device that is being connected to
+        readonly property var connecting: devices.find(d => d.state === BluetoothDeviceState.Connecting)
+        // the list is hidden while a device has a view of its own
+        readonly property bool listing: pairing === null && connecting === undefined
 
         function label(d) {
             const state = d.connected ? "  connected" : d.paired ? "  paired" : "";
@@ -104,6 +110,7 @@ Menu {
         }
 
         MenuRow {
+            visible: column.listing
             text: "Bluetooth: " + (column.adapter?.enabled ? "on" : "off") + " (click to switch)"
             active: column.adapter?.enabled ?? false
             onClicked: column.adapter.enabled = !column.adapter.enabled
@@ -115,6 +122,7 @@ Menu {
             MenuRow {
                 required property var modelData
 
+                visible: column.listing
                 text: column.label(modelData)
                 active: modelData.connected
                 onClicked: {
@@ -128,10 +136,24 @@ Menu {
             }
         }
 
+        // the view of the device being paired
         MenuRow {
             visible: column.pairing !== null
             text: column.message
             active: true
+        }
+
+        // the view of a device being connected
+        MenuRow {
+            visible: column.pairing === null && column.connecting !== undefined
+            text: "Connecting to " + (column.connecting?.name ?? "") + " ..."
+            active: true
+        }
+
+        MenuRow {
+            visible: column.pairing === null && column.connecting !== undefined
+            text: "Back"
+            onClicked: column.connecting.disconnect()
         }
 
         MenuRow {

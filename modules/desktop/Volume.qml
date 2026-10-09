@@ -7,8 +7,9 @@ Text {
     readonly property var audio: sink?.audio
 
     visible: audio !== null && audio !== undefined
-    text: audio ? (audio.muted ? "vol muted" : "vol " + Math.round(audio.volume * 100) + "%") : ""
-    color: audio?.muted ? Theme.base03 : Theme.base05
+    // speaker icon with waves, or crossed out while muted, and the level
+    text: !audio ? "" : audio.muted ? "" : (audio.volume < 0.5 ? " " : " ") + Math.round(audio.volume * 100) + "%"
+    color: audio?.muted ? Theme.base08 : Theme.base0D
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
 

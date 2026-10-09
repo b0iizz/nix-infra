@@ -154,7 +154,7 @@ let
                               rightMargin: 8
                               verticalCenter: parent.verticalCenter
                           }
-                          spacing: 8
+                          spacing: 14
           ${inPosition "right"}
                       }
                   }

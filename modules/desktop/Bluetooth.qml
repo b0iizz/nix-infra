@@ -1,4 +1,4 @@
-// Bar item: bluetooth state and the number of connected devices; left click
+// Bar item: bluetooth icon, colored by state; left click
 // switches the adapter, right click opens BluetoothMenu. Only on hosts with a
 // bluetooth controller (modules/desktop/widgets.nix).
 import QtQuick
@@ -10,8 +10,9 @@ Text {
     readonly property int connected: adapter ? adapter.devices.values.filter(d => d.connected).length : 0
 
     visible: adapter !== null
-    text: !adapter?.enabled ? "bt off" : connected > 0 ? "bt " + connected : "bt"
-    color: adapter?.enabled ? Theme.base05 : Theme.base03
+    // dim when off, white when on, blue while a device is connected
+    text: ""
+    color: !adapter?.enabled ? Theme.base03 : connected > 0 ? Theme.base0D : Theme.base05
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
 

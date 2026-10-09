@@ -1,4 +1,5 @@
-// Bar item: screen brightness, scrolling changes it. Hidden on a machine
+// Bar item: sun icon and screen brightness, scrolling changes it. (The icons
+// of the bar items are Nerd Font glyphs, the theme's default font.) Hidden on a machine
 // without a backlight. Polled, as nothing tells us when it changed.
 import QtQuick
 import Quickshell
@@ -14,8 +15,8 @@ Text {
     }
 
     visible: percent !== ""
-    text: "bri " + percent + "%"
-    color: Theme.base05
+    text: " " + percent + "%"
+    color: Theme.base0A
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
 

@@ -1,4 +1,4 @@
-// Bar item: the wifi network and its signal; right click opens WifiMenu. Only
+// Bar item: wifi icon and signal strength; right click opens WifiMenu. Only
 // on hosts with a wifi interface (modules/desktop/widgets.nix).
 import QtQuick
 import Quickshell
@@ -8,8 +8,11 @@ Text {
     readonly property var device: Networking.devices.values.find(d => d.type === DeviceType.Wifi)
     readonly property var network: device?.networks.values.find(n => n.connected)
 
-    text: !Networking.wifiEnabled ? "wifi off" : network ? "wifi " + network.name + " " + Math.round(network.signalStrength * 100) + "%" : "wifi -"
-    color: network ? Theme.base05 : Theme.base03
+    readonly property real strength: network?.signalStrength ?? 0
+
+    // the icon is dim without a connection, else green, yellow or red by signal
+    text: network ? " " + Math.round(strength * 100) + "%" : ""
+    color: !network ? Theme.base03 : strength >= 0.6 ? Theme.base0B : strength >= 0.3 ? Theme.base0A : Theme.base08
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
 
