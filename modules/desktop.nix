@@ -757,6 +757,7 @@ in
             grep -qF '${full.desktop.wallpaper.directory}' $tree/ShellData.qml
             test -e '${full.desktop.wallpaper.default}'
             grep -q 'AuthView' $tree/qmldir
+            grep -q 'WheelArea' $tree/qmldir
             grep -q 'AuthView {' $tree/LockScreen.qml
             grep -q 'AuthForm {' $tree/PolkitAgent.qml
             grep -q 'fingerprint' $tree/ShellData.qml

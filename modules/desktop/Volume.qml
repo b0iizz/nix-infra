@@ -18,9 +18,9 @@ Text {
         objects: [sink]
     }
 
-    MouseArea {
+    WheelArea {
         anchors.fill: parent
         onClicked: audio.muted = !audio.muted
-        onWheel: w => audio.volume = Math.max(0, Math.min(1, audio.volume + (w.angleDelta.y > 0 ? 0.05 : -0.05)))
+        onStepped: steps => audio.volume = Math.max(0, Math.min(1, audio.volume + steps * 0.05))
     }
 }

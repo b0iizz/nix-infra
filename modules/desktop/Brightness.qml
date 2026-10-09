@@ -43,10 +43,10 @@ Text {
         onTriggered: root.refresh()
     }
 
-    MouseArea {
+    WheelArea {
         anchors.fill: parent
-        onWheel: w => {
-            Quickshell.execDetached(["brightnessctl", "-c", "backlight", "set", w.angleDelta.y > 0 ? "5%+" : "5%-"]);
+        onStepped: steps => {
+            Quickshell.execDetached(["brightnessctl", "-c", "backlight", "set", Math.abs(steps) * 5 + (steps > 0 ? "%+" : "%-")]);
             root.refresh();
         }
     }

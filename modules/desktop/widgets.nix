@@ -65,6 +65,8 @@
       desktop.components = {
         Menu.qml = ./Menu.qml;
         MenuRow.qml = ./MenuRow.qml;
+        # the scrolling of Brightness and Volume
+        WheelArea.qml = ./WheelArea.qml;
       };
       desktop.overlays = lib.mkMerge [
         (lib.mkIf items.Network.enable { NetworkMenu.qml = ./NetworkMenu.qml; })
