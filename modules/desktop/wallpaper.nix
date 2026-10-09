@@ -103,8 +103,9 @@
         hash = "sha256-D4btmZ3E3eNdQZ9vqn3jHDGknkVjH4cC9aL5zezHTdc=";
       };
 
-      # awww shows a plain color until it is given an image. Without anything
-      # to restore, set the default; the daemon needs a moment to start.
+      # awww shows a plain color until it is given an image. The daemon
+      # restores the last one by running `awww img` itself, a moment after it
+      # answers; only when no image has come after a few seconds, set the default.
       setDefault = pkgs.writeShellApplication {
         name = "wallpaper-default";
         runtimeInputs = [
@@ -113,12 +114,20 @@
           pkgs.gnugrep
         ];
         text = ''
-          for _ in $(seq 50); do
-            awww query >/dev/null 2>&1 && break
+          # the outputs without an image, from lines like ": eDP-1: 1504x1003, ... displaying: color: 000000"
+          bare() { { awww query 2>/dev/null || true; } | grep 'displaying: color' | cut -d: -f2 | tr -d ' ' | paste -sd, - || true; }
+          # an empty answer: the daemon is up but has no outputs yet
+          for _ in $(seq 25); do
+            if [ -n "$(awww query 2>/dev/null || true)" ] && [ -z "$(bare)" ]; then exit 0; fi
             sleep 0.2
           done
-          if awww query | grep -q 'displaying: color'; then
-            awww img ${lib.escapeShellArg cfg.default} --transition-type none
+          # the copy of the user's own choice first: setting the default here
+          # would make awww remember it instead
+          file="${current}"
+          [ -s "$file" ] || file=${lib.escapeShellArg cfg.default}
+          outputs=$(bare)
+          if [ -n "$outputs" ]; then
+            awww img --outputs "$outputs" "$file" --transition-type none
           fi
         '';
       };
@@ -195,6 +204,8 @@
         # awww's memory of the last image
         persist.home.directories = lib.optional (cfg.daemon == "awww") ".cache/awww";
         persist.directories = [ saved ];
+        # the daemon restores the last image by running `awww` from PATH
+        environment.systemPackages = lib.optional (cfg.daemon == "awww") pkgs.awww;
 
         # one file per user, which only that user may write
         systemd.tmpfiles.rules = [
