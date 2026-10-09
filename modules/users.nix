@@ -23,8 +23,9 @@ let
 
   adminSecretId = user: "user-ssh-${user}";
 
-  # agenix-rekey's `ssh-ed25519` generator writes the public key next to the
-  # generated secret as `<secret>.pub`.
+  # The admin key's generator (below) writes the public key next to the
+  # generated secret as `<secret>.pub`; agenix-rekey's own `ssh-ed25519`
+  # generator only produces the private key.
   adminPublicKey =
     user:
     let
@@ -297,7 +298,7 @@ in
                   }:
                   ''
                     pw=$(${decrypt} ${lib.escapeShellArg (lib.head deps).file})
-                    printf '%s' "$pw" | ${pkgs.whois}/bin/mkpasswd -s -m yescrypt
+                    printf '%s' "$pw" | ${pkgs.mkpasswd}/bin/mkpasswd -s -m yescrypt
                   '';
               };
               mode = "0400";
@@ -314,7 +315,21 @@ in
         holdsKey = user: elem hostName adminUsers.${user}.keyHosts;
         adminKeySecret = user: {
           ${adminSecretId user} = {
-            generator.script = "ssh-ed25519";
+            generator.script =
+              {
+                lib,
+                pkgs,
+                file,
+                name,
+                ...
+              }:
+              ''
+                dir=$(mktemp -d)
+                trap 'rm -rf "$dir"' EXIT
+                ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" -C ${lib.escapeShellArg name} -f "$dir/key" >/dev/null
+                cp "$dir/key.pub" ${lib.escapeShellArg "${lib.removeSuffix ".age" file}.pub"}
+                cat "$dir/key"
+              '';
           }
           // (
             if holdsKey user then
