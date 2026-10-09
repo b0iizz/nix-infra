@@ -263,6 +263,15 @@ in
         };
         package = hyprland.extend {
           passthru.settings = {
+            monitors =
+              old:
+              old
+              ++ lib.mapAttrsToList (output: o: {
+                inherit output;
+                inherit (o) scale;
+                mode = "preferred";
+                position = "auto";
+              }) config.desktop.outputs;
             startup = old: old ++ config.desktop.startup;
             launcher = _: config.desktop.launcherCommand;
             lock = _: config.desktop.lock.command;

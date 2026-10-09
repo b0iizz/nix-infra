@@ -148,6 +148,12 @@ in
           startup = old: old ++ config.desktop.startup;
           launcher = _: config.desktop.launcherCommand;
           lock = _: config.desktop.lock.command;
+          extraConfig =
+            old:
+            old
+            + lib.concatStrings (
+              lib.mapAttrsToList (n: o: "output ${n} scale ${builtins.toJSON o.scale}\n") config.desktop.outputs
+            );
         };
       };
     in

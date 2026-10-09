@@ -9,6 +9,8 @@
 # without hyprland.
 #
 #   desktop.workspaces        { name, monitor }  the workspace layout
+#   desktop.outputs.<name>    { scale }  per connector (`eDP-1`), for every
+#                             compositor; the others guess the scale themselves
 #   desktop.bar.items.<Name>  a QML component for the bar: `position`, `order`
 #                             and `qml` (source text or a path). <Name> is the
 #                             QML type name, so it starts with a capital.
@@ -62,6 +64,16 @@ in
           }
         );
         default = [ ];
+      };
+
+      outputs = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options.scale = mkOption { type = types.numbers.positive; };
+          }
+        );
+        default = { };
+        example.eDP-1.scale = 1.5;
       };
 
       bar.items = mkOption {
@@ -647,6 +659,33 @@ in
             startup = [ ];
           };
         };
+        # an output's scale reaches every compositor
+        testOutputs =
+          let
+            c = hostWith { desktop.outputs.eDP-1.scale = 1.5; } [
+              "hyprland"
+              "niri"
+              "sway"
+            ];
+            extra = p: p.passthru.settings.extraConfig;
+          in
+          {
+            expr = {
+              hyprland = lib.last (hypr c).monitors;
+              niri = lib.hasInfix ''output "eDP-1" { scale 1.5; }'' (extra c.programs.niri.package);
+              sway = lib.hasInfix "output eDP-1 scale 1.5" (extra c.programs.sway.package);
+            };
+            expected = {
+              hyprland = {
+                output = "eDP-1";
+                scale = 1.5;
+                mode = "preferred";
+                position = "auto";
+              };
+              niri = true;
+              sway = true;
+            };
+          };
         # the copy of the current wallpaper: the user may write it, the login screen read it
         testWallpaperCopy = {
           expr = lib.elem "f /var/lib/wallpaper/joni 0644 joni users -" full.systemd.tmpfiles.rules;
