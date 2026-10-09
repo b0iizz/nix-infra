@@ -37,7 +37,8 @@ Row {
     }
 
     // the stream may start with the state before anyone listens
-    Component.onCompleted: if (active) list.running = true
+    Component.onCompleted: if (active)
+        list.running = true
 
     Repeater {
         model: root.workspaces

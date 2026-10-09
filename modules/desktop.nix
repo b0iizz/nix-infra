@@ -294,6 +294,7 @@ in
             ];
             overlays = [
               "LockScreen"
+              "Notifications"
               "PolkitAgent"
               "PowerMenu"
               "WallpaperPicker"
@@ -434,6 +435,7 @@ in
             grep -q 'PowerMenu {}' $tree/shell.qml
             grep -q 'LockScreen {}' $tree/shell.qml
             grep -q 'PolkitAgent {}' $tree/shell.qml
+            grep -q 'Notifications {}' $tree/shell.qml
             grep -q 'WallpaperPicker {}' $tree/shell.qml
             test -e $tree/WallpaperButton.qml
             grep -q 'bin/wallpaper-set"' $tree/ShellData.qml

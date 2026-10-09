@@ -222,7 +222,7 @@ in
   #
   # Comes with what every desktop needs: the shutdown menu (desktop/power.nix),
   # the lock screen (desktop/lock.nix), the polkit agent (desktop/polkit.nix),
-  # the wallpaper daemon and picker (desktop/wallpaper.nix) and the session
+  # the notification daemon (desktop/notifications.nix), the wallpaper daemon and picker (desktop/wallpaper.nix) and the session
   # basics (desktop/session.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
@@ -252,6 +252,7 @@ in
         desktop-power
         desktop-lock
         desktop-polkit
+        desktop-notifications
         desktop-wallpaper
         desktop-session
       ];

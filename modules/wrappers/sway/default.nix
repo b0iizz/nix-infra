@@ -34,7 +34,9 @@ let
         s = final.passthru.settings;
         c = self.lib.theme.hash final.passthru.theme.colors;
 
-        bind = flags: key: cmd: "bindsym ${flags}${key} ${cmd}";
+        bind =
+          flags: key: cmd:
+          "bindsym ${flags}${key} ${cmd}";
         binds =
           lib.mapAttrsToList (bind "") (
             s.binds
@@ -127,11 +129,13 @@ in
         (lib.mkAfter [ (personal config.packages) ])
       ];
 
-      checks.sway-config = pkgs.runCommand "check-sway-config" { nativeBuildInputs = [ pkgs.sway-unwrapped ]; } ''
-        export XDG_RUNTIME_DIR=$TMPDIR WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
-        sway --validate --config ${config.packages.sway.passthru.config.file."config"}
-        touch $out
-      '';
+      checks.sway-config =
+        pkgs.runCommand "check-sway-config" { nativeBuildInputs = [ pkgs.sway-unwrapped ]; }
+          ''
+            export XDG_RUNTIME_DIR=$TMPDIR WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+            sway --validate --config ${config.packages.sway.passthru.config.file."config"}
+            touch $out
+          '';
     };
 
   # Opt-in per host (`roles = [ "sway" ]`), next to or instead of `niri` and
