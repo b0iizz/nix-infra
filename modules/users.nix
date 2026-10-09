@@ -343,6 +343,8 @@ in
         passwordFor = user: lib.optionalAttrs (generated ? ${user}) { hashedPasswordFile = hashFile user; };
       in
       {
+        imports = [ self.modules.nixos.persist ];
+
         config = {
 
           users.mutableUsers = mkDefault userAccounts.mutableUsers;
@@ -391,9 +393,16 @@ in
             ++ lib.optionals canDecrypt (map adminKeySecret (attrNames adminUsers))
           );
 
-          systemd.tmpfiles.rules = lib.optionals canDecrypt (
-            lib.concatMap adminKeyTmpfiles (lib.filter holdsKey (attrNames adminUsers))
-          );
+          # Every user's code lives in ~/Projects, kept on hosts that wipe their root
+          persist.home.directories = [ "Projects" ];
+
+          systemd.tmpfiles.rules =
+            lib.optionals canDecrypt (
+              lib.concatMap adminKeyTmpfiles (lib.filter holdsKey (attrNames adminUsers))
+            )
+            ++ lib.mapAttrsToList (name: u: "d ${u.home}/Projects 0755 ${name} ${u.group} -") (
+              filterAttrs (_: u: u.isNormalUser) config.users.users
+            );
 
           assertions = [
             {
