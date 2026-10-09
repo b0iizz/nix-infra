@@ -31,7 +31,18 @@ Scope {
         target: "lock"
 
         function lock(): void {
+            // lock-before-sleep also calls this on a locked screen
+            if (sessionLock.locked)
+                return;
             sessionLock.locked = true;
+            // here, not in onLockedChanged: Quickshell 0.3.1 signals only the unlock
+            if (!sessionLock.locked)
+                return;
+            root.failed = false;
+            root.fingerprintRetries = 0;
+            password.start();
+            if (root.fingerprint)
+                finger.start();
         }
     }
 
@@ -80,19 +91,11 @@ Scope {
     WlSessionLock {
         id: sessionLock
 
-        onLockedChanged: {
-            if (locked) {
-                root.failed = false;
-                root.fingerprintRetries = 0;
-                password.start();
-                if (root.fingerprint)
-                    finger.start();
-            } else {
-                retry.stop();
-                restartPassword.stop();
-                password.abort();
-                finger.abort();
-            }
+        onLockedChanged: if (!locked) {
+            retry.stop();
+            restartPassword.stop();
+            password.abort();
+            finger.abort();
         }
 
         WlSessionLockSurface {
