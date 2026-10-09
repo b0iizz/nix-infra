@@ -11,7 +11,8 @@ Scope {
     readonly property var cfg: ShellData.batteryWarning
     readonly property var battery: UPower.displayDevice
     readonly property int percent: Math.round(battery.percentage * 100)
-    readonly property bool draining: battery.isPresent && UPower.onBattery
+    // not before upower answered: until then the charge reads 0%
+    readonly property bool draining: battery.ready && battery.isPresent && UPower.onBattery
     // 0: fine, 1: low, 2: critical; what was warned about already
     property int warned: 0
 
