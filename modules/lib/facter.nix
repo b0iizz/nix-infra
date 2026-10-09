@@ -26,6 +26,31 @@ let
     in
     if sizes == [ ] then null else lib.foldl' builtins.add 0 sizes;
 
+  # --- hardware a desktop shows ----------------------------------------------
+  # All of them are `false` for an absent report. The report is a snapshot, so
+  # a dongle plugged in later is not seen.
+  hardware = report: if report == null then { } else report.hardware or { };
+
+  hasBluetooth = report: (hardware report).bluetooth or [ ] != [ ];
+
+  # a network interface named like a wireless one (wlan0, wlp3s0)
+  hasWifi =
+    report:
+    lib.any (i: lib.any (lib.hasPrefix "wl") (lib.defaultTo [ ] (i.unix_device_names or null))) (
+      (hardware report).network_interface or [ ]
+    );
+
+  # ponytail: facter has no battery class, so the form factor stands in for it;
+  # a desktop with a UPS or a laptop reported as "unknown" gets it wrong.
+  hasBattery =
+    report:
+    lib.elem ((hardware report).system.form_factor or "") [
+      "laptop"
+      "notebook"
+      "handheld"
+      "tablet"
+    ];
+
   # --- disks ------------------------------------------------------------------
   byId = "/dev/disk/by-id/";
   byPath = "/dev/disk/by-path/";
@@ -126,6 +151,12 @@ let
 in
 {
   flake.lib.facter = {
-    inherit ramBytes disks;
+    inherit
+      ramBytes
+      disks
+      hasBluetooth
+      hasWifi
+      hasBattery
+      ;
   };
 }

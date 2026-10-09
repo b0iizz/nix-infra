@@ -1,0 +1,67 @@
+# Status widgets for the bar, imported by the quickshell role: clock, volume,
+# brightness and network are always there, wifi, bluetooth and battery only on
+# hosts whose facter report (modules/lib/facter.nix) has that hardware. The
+# others are not even compiled into the shell.
+#
+# Every one is a `desktop.bar.items.<Name>` and is switched with its `enable`:
+#
+#   desktop.bar.items.Clock.enable = false;
+#   desktop.bar.items.Wifi.enable = true;   # report missing or out of date
+{ self, lib, ... }:
+{
+  flake.modules.nixos.desktop-widgets =
+    { config, ... }:
+    let
+      # absent on the hosts of the desktop-roles check, which have no registry
+      report = (config.host-context or { }).facter.report or null;
+      facter = self.lib.facter;
+      items = config.desktop.bar.items;
+    in
+    {
+      imports = [ self.modules.nixos.desktop ];
+
+      desktop.bar.items = {
+        Clock = {
+          position = "center";
+          qml = ./Clock.qml;
+        };
+        Brightness = {
+          position = "right";
+          order = 100;
+          qml = ./Brightness.qml;
+        };
+        Volume = {
+          position = "right";
+          order = 200;
+          qml = ./Volume.qml;
+        };
+        Bluetooth = {
+          enable = lib.mkDefault (facter.hasBluetooth report);
+          position = "right";
+          order = 300;
+          qml = ./Bluetooth.qml;
+        };
+        Wifi = {
+          enable = lib.mkDefault (facter.hasWifi report);
+          position = "right";
+          order = 400;
+          qml = ./Wifi.qml;
+        };
+        Network = {
+          position = "right";
+          order = 500;
+          qml = ./Network.qml;
+        };
+        Battery = {
+          enable = lib.mkDefault (facter.hasBattery report);
+          position = "right";
+          order = 600;
+          qml = ./Battery.qml;
+        };
+      };
+
+      # what the widgets read from
+      hardware.bluetooth.enable = lib.mkIf items.Bluetooth.enable (lib.mkDefault true);
+      services.upower.enable = lib.mkIf items.Battery.enable (lib.mkDefault true);
+    };
+}

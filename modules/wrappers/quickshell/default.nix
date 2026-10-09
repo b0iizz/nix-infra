@@ -227,11 +227,12 @@ in
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let
+      barItems = lib.filterAttrs (_: i: i.enable) config.desktop.bar.items;
       quickshell = self.packages.${pkgs.stdenv.hostPlatform.system}.quickshell.extend [
         {
           passthru.settings = {
             workspaces = _: config.desktop.workspaces;
-            barItems = _: config.desktop.bar.items;
+            barItems = _: barItems;
             overlays = _: config.desktop.overlays;
             components = _: config.desktop.components;
             launcherEntries = _: config.desktop.launcher.entries;
@@ -241,7 +242,7 @@ in
         # file names cannot come from the settings, see modules/wrappers/files.nix
         {
           passthru.files = lib.mapAttrs' (name: c: lib.nameValuePair "${name}.qml" (_: c.qml)) (
-            config.desktop.bar.items // config.desktop.overlays // config.desktop.components
+            barItems // config.desktop.overlays // config.desktop.components
           );
         }
       ];
@@ -253,6 +254,7 @@ in
         desktop-lock
         desktop-polkit
         desktop-notifications
+        desktop-widgets
         desktop-wallpaper
         desktop-session
       ];

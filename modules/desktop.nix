@@ -12,6 +12,7 @@
 #   desktop.bar.items.<Name>  a QML component for the bar: `position`, `order`
 #                             and `qml` (source text or a path). <Name> is the
 #                             QML type name, so it starts with a capital.
+#                             `enable = false` drops it from the shell.
 #   desktop.overlays.<Name>   a QML component that lives at the root of the
 #                             shell (menus, notifications, ...): `qml`
 #   desktop.components.<Name> a QML file other components use (AuthForm, ...),
@@ -66,6 +67,11 @@ in
         type = types.attrsOf (
           types.submodule {
             options = {
+              enable = mkOption {
+                type = types.bool;
+                default = true;
+                description = "Off leaves the item out of the shell: `desktop.bar.items.Clock.enable = false;`.";
+              };
               position = mkOption {
                 type = types.enum [
                   "left"
@@ -288,7 +294,11 @@ in
               "wallpaper"
             ];
             items = [
+              "Brightness"
+              "Clock"
+              "Network"
               "PowerButton"
+              "Volume"
               "WallpaperButton"
               "Workspaces"
             ];
@@ -300,6 +310,71 @@ in
               "WallpaperPicker"
             ];
             workspaces = 9;
+          };
+        };
+        # wifi, bluetooth and battery follow the hardware; any item can be switched off
+        testWidgetHardware =
+          let
+            report.hardware = {
+              bluetooth = [ { } ];
+              network_interface = [
+                {
+                  unix_device_names = [ "lo" ];
+                }
+                {
+                  unix_device_names = [ "wlp170s0" ];
+                }
+              ];
+              system.form_factor = "desktop";
+            };
+            facter = self.lib.facter;
+          in
+          {
+            expr = {
+              wifi = facter.hasWifi report;
+              bluetooth = facter.hasBluetooth report;
+              battery = facter.hasBattery report;
+              noWifi = facter.hasWifi { hardware.network_interface = [ { unix_device_names = null; } ]; };
+              laptop = facter.hasBattery { hardware.system.form_factor = "laptop"; };
+              noReport = [
+                (facter.hasWifi null)
+                (facter.hasBluetooth null)
+                (facter.hasBattery null)
+              ];
+            };
+            expected = {
+              wifi = true;
+              bluetooth = true;
+              battery = false;
+              noWifi = false;
+              laptop = true;
+              noReport = [
+                false
+                false
+                false
+              ];
+            };
+          };
+        testWidgetSwitch = {
+          expr =
+            let
+              c = hostWith {
+                desktop.bar.items.Clock.enable = false;
+                desktop.bar.items.Battery.enable = true;
+              } [ "quickshell" ];
+              items = lib.attrNames (quickshell c).barItems;
+            in
+            {
+              clock = lib.elem "Clock" items;
+              battery = lib.elem "Battery" items;
+              upower = c.services.upower.enable;
+              wifi = lib.elem "Wifi" items;
+            };
+          expected = {
+            clock = false;
+            battery = true;
+            upower = true;
+            wifi = false;
           };
         };
         testShellAlone = {
@@ -317,7 +392,11 @@ in
               "wallpaper"
             ];
             items = [
+              "Brightness"
+              "Clock"
+              "Network"
               "PowerButton"
+              "Volume"
               "WallpaperButton"
             ];
             workspaces = [ ];
@@ -396,9 +475,13 @@ in
           };
           expected = {
             items = [
+              "Brightness"
+              "Clock"
+              "Network"
               "NiriWorkspaces"
               "PowerButton"
               "SwayWorkspaces"
+              "Volume"
               "WallpaperButton"
               "Workspaces"
             ];
