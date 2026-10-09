@@ -308,7 +308,9 @@ withInputs
               in
               hibernation + (if cfg.swap.size == null then 0 else parseSize cfg.swap.size);
 
-            warnings = lib.optional (cfg.luks.enable && cfg.swap.bytes > 0) "disko-layouts: swap is not encrypted (luks.enable only covers the root filesystem).";
+            warnings = lib.optional (
+              cfg.luks.enable && cfg.swap.bytes > 0
+            ) "disko-layouts: swap is not encrypted (luks.enable only covers the root filesystem).";
 
             assertions =
               lib.mapAttrsToList (mountpoint: claims: {

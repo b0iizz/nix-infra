@@ -44,7 +44,7 @@ withInputs
                 "*.pub"
                 "*.age"
                 "**/.gitkeep"
-                "*.age-identity"
+                "*.hmac"
               ];
             };
           };

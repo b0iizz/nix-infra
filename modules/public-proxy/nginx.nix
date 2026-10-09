@@ -48,7 +48,7 @@ let
               access_log ${logFile r.id};
               ${optionalString (r.maxBodySize != null) "client_max_body_size ${r.maxBodySize};"}
               ${optionalString (r.realIp != null) (realIp r)}
-              ${optionalString (r.realIp != null) ''if ($public_proxy_from_cloudflare = 0) { return 444; }''}
+              ${optionalString (r.realIp != null) "if ($public_proxy_from_cloudflare = 0) { return 444; }"}
               ${r.service.nginx.serverConfig}
             '';
             locations."/" = {

@@ -83,5 +83,7 @@ in
   # Opt-in per host (`roles = [ "alacritty" ]`), not part of `base`.
   flake.modules.nixos.alacritty =
     { pkgs, ... }:
-    { environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty ]; };
+    {
+      environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty ];
+    };
 }
