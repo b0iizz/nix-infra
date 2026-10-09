@@ -1,7 +1,9 @@
 # Shutdown menu and shutdown launcher entries. Imported by the quickshell role.
 #
 # The actions are `desktop.power.actions` (modules/desktop.nix): shut down,
-# reboot and suspend are set here, and log out once there is a session.
+# reboot and suspend are set here, hibernate once there is a resume device
+# (`boot.resumeDevice`, which the disko layouts set for hibernation swap), and
+# log out once there is a session.
 # Every action is a launcher entry, and the same list is the menu that
 # `quickshell ipc call powermenu toggle` opens and the bar button toggles.
 { self, lib, ... }:
@@ -10,6 +12,20 @@
     { config, ... }:
     let
       lock = config.desktop.lock.command;
+      # locked first, or the machine wakes up open
+      sleepAfterLock =
+        verb:
+        if lock == null then
+          [
+            "systemctl"
+            verb
+          ]
+        else
+          [
+            "sh"
+            "-c"
+            "${lib.escapeShellArgs lock}; sleep 1; systemctl ${verb}"
+          ];
       actions = lib.sort (a: b: a.order < b.order || (a.order == b.order && a.name < b.name)) (
         lib.attrValues config.desktop.power.actions
       );
@@ -36,24 +52,21 @@
           order = 20;
           confirm = true;
         };
-        # locked first, or the machine wakes up open
         suspend = lib.mkDefault {
           name = "Suspend";
-          exec =
-            if lock == null then
-              [
-                "systemctl"
-                "suspend"
-              ]
-            else
-              [
-                "sh"
-                "-c"
-                "${lib.escapeShellArgs lock}; sleep 1; systemctl suspend"
-              ];
+          exec = sleepAfterLock "suspend";
           order = 30;
         };
       };
+
+      # only where the kernel has an image to resume from, or it would not come back
+      desktop.power.actions.hibernate = lib.mkIf (config.boot.resumeDevice != "") (
+        lib.mkDefault {
+          name = "Hibernate";
+          exec = sleepAfterLock "hibernate";
+          order = 35;
+        }
+      );
 
       # works for any compositor: logind ends the session and with it the compositor
       desktop.power.actions.logout = lib.mkIf (config.desktop.sessions != { }) (

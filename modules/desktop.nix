@@ -458,6 +458,37 @@ in
             none = null;
           };
         };
+        # Hibernate is offered where there is a resume device, and locks first
+        testHibernate =
+          let
+            withSwap = hostWith { boot.resumeDevice = "/dev/disk/by-label/swap"; } [ "quickshell" ];
+          in
+          {
+            expr = {
+              noSwap = shellOnly.desktop.power.actions ? hibernate;
+              swap = withSwap.desktop.power.actions ? hibernate;
+              exec = withSwap.desktop.power.actions.hibernate.exec;
+              entry = (quickshell withSwap).launcherEntries ? power-hibernate;
+              menu = map (a: a.name) (quickshell withSwap).data.powerActions;
+            };
+            expected = {
+              noSwap = false;
+              swap = true;
+              exec = [
+                "sh"
+                "-c"
+                "quickshell ipc call lock lock; sleep 1; systemctl hibernate"
+              ];
+              entry = true;
+              menu = [
+                "Lock"
+                "Shut down"
+                "Reboot"
+                "Suspend"
+                "Hibernate"
+              ];
+            };
+          };
         testShellAlone = {
           expr = {
             entries = lib.attrNames (quickshell shellOnly).launcherEntries;
