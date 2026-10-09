@@ -134,7 +134,8 @@ in
         enable = true;
         settings.default_session = {
           user = "greeter";
-          command = "${lib.getExe pkgs.cage} -s -- ${lib.getExe greeter}";
+          # -d: no title bar; cage asks clients to draw their own otherwise
+          command = "${lib.getExe pkgs.cage} -d -s -- ${lib.getExe greeter}";
         };
       };
     };
