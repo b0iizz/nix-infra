@@ -83,61 +83,89 @@ withInputs
         priority = mkDefault 0;
       };
 
+      # LVM volume group inside the LUKS volume: swap and root are logical
+      # volumes, /dev/mapper/system-swap and /dev/mapper/system-root.
+      lvmVg = "system";
+
       # The root disk: ESP, optional swap, and `rootContent` in the rest. Swap
-      # is a partition on purpose: hibernation resumes from a plain block device,
-      # with no filesystem or swapfile offset to get right.
+      # is a plain block device on purpose: hibernation resumes from it, with
+      # no filesystem or swapfile offset to get right. Without LUKS it is a
+      # partition; with LUKS it is a logical volume next to the root, so one
+      # unlock (one passphrase, or one PIN and touch) opens both.
       rootDisk =
         config: rootContent:
         let
           cfg = config.disko-layouts;
-          # swap and root each in a LUKS volume of their own. With a passphrase
-          # the initrd asks once and tries it on both; with FIDO2 each volume
-          # is enrolled on its own (two PIN/touch prompts, also at boot).
-          encrypted =
-            name: content:
+          swapContent = {
+            type = "swap";
+            discardPolicy = "both";
+            resumeDevice = cfg.swap.hibernation;
+          };
+          hasSwap = cfg.swap.bytes > 0;
+          rootPartitionContent =
             if cfg.luks.enable then
               {
                 type = "luks";
-                inherit name content;
+                name = cfg.luks.name;
                 settings.allowDiscards = true;
+                content = {
+                  type = "lvm_pv";
+                  vg = lvmVg;
+                };
               }
               // (if cfg.luks.fido2 then { enrollFido2 = true; } else { passwordFile = cfg.luks.passwordFile; })
             else
-              content;
+              rootContent;
         in
         {
-          device = config.disk-select.result.root;
-          type = "disk";
-          content = {
-            type = "gpt";
-            partitions = {
-              ESP = {
-                size = cfg.espSize;
-                type = "EF00";
-                content = {
-                  type = "filesystem";
-                  format = "vfat";
-                  mountpoint = "/boot";
-                  mountOptions = [ "umask=0077" ];
+          disk.root = {
+            device = config.disk-select.result.root;
+            type = "disk";
+            content = {
+              type = "gpt";
+              partitions = {
+                ESP = {
+                  size = cfg.espSize;
+                  type = "EF00";
+                  content = {
+                    type = "filesystem";
+                    format = "vfat";
+                    mountpoint = "/boot";
+                    mountOptions = [ "umask=0077" ];
+                  };
                 };
-              };
-            }
-            // lib.optionalAttrs (cfg.swap.bytes > 0) {
-              swap = {
-                size = toDiskoSize cfg.swap.bytes;
-                content = encrypted "${cfg.luks.name}-swap" {
-                  type = "swap";
-                  discardPolicy = "both";
-                  resumeDevice = cfg.swap.hibernation;
+              }
+              // lib.optionalAttrs (hasSwap && !cfg.luks.enable) {
+                swap = {
+                  size = toDiskoSize cfg.swap.bytes;
+                  content = swapContent;
                 };
-              };
-            }
-            // {
-              root = {
-                size = "100%";
-                content = encrypted cfg.luks.name rootContent;
+              }
+              // {
+                root = {
+                  size = "100%";
+                  content = rootPartitionContent;
+                };
               };
             };
+          };
+        }
+        // lib.optionalAttrs cfg.luks.enable {
+          lvm_vg.${lvmVg} = {
+            type = "lvm_vg";
+            lvs =
+              lib.optionalAttrs hasSwap {
+                swap = {
+                  size = toDiskoSize cfg.swap.bytes;
+                  content = swapContent;
+                };
+              }
+              // {
+                root = {
+                  size = "100%FREE";
+                  content = rootContent;
+                };
+              };
           };
         };
 
@@ -233,9 +261,10 @@ withInputs
                 type = types.bool;
                 default = false;
                 description = ''
-                  Encrypt the root filesystem and the swap partition, and so the
-                  hibernation image, with LUKS2 (root layouts only). The passphrase
-                  is asked for once at boot. `provision commit` asks for it and
+                  Encrypt the root filesystem and the swap, and so the hibernation
+                  image, with LUKS2 (root layouts only). One LUKS volume holds an
+                  LVM group with swap and root as logical volumes, so the
+                  passphrase is asked for once at boot. `provision commit` asks for it and
                   hands it to disko, nothing keeps it. See `fido2` for a token.
                 '';
               };
@@ -247,8 +276,8 @@ withInputs
                   Unlock with a FIDO2 token instead of a passphrase. disko enrolls
                   the token while `provision commit --local` formats (it waits for
                   the token, then asks for its PIN and a touch) and prints a
-                  recovery key per volume: that key is the only way in without
-                  the token, so store it. Needs `luks.enable`. A remote commit
+                  recovery key: that key is the only way in without the token,
+                  so store it. One PIN and touch per boot. Needs `luks.enable`. A remote commit
                   refuses it: the token would have to sit in the target.
                 '';
               };
@@ -256,7 +285,7 @@ withInputs
               name = mkOption {
                 type = types.str;
                 default = "cryptroot";
-                description = "Name of the opened root volume under /dev/mapper; the swap volume is `<name>-swap`.";
+                description = "Name of the opened LUKS volume under /dev/mapper; the logical volumes in it are `system-root` and `system-swap`.";
               };
 
               passwordFile = mkOption {
@@ -308,6 +337,9 @@ withInputs
           };
 
           config = {
+            # the systemd initrd needs this to activate the volume group
+            boot.initrd.services.lvm.enable = lib.mkIf cfg.luks.enable true;
+
             disko-layouts.clashing = lib.any (claims: lib.length claims > 1) (lib.attrValues byMountpoint);
 
             disko-layouts.swap.bytes =
@@ -355,7 +387,7 @@ withInputs
           config = layout config "disko-root-ext4" "/" {
             disk-select.want.root = rootWant config.disko-layouts;
 
-            disko.devices.disk.root = rootDisk config {
+            disko.devices = rootDisk config {
               type = "filesystem";
               format = "ext4";
               mountpoint = "/";
@@ -373,7 +405,7 @@ withInputs
             disk-select.want.root = rootWant config.disko-layouts;
             disko-layouts.mountOptions = mkDefault btrfsOpts;
 
-            disko.devices.disk.root = rootDisk config {
+            disko.devices = rootDisk config {
               type = "btrfs";
               extraArgs = [ "-f" ];
               subvolumes = {
@@ -404,10 +436,10 @@ withInputs
         }:
         let
           cfg = config.disko-layouts.impermanence;
-          # what holds the btrfs: the partition, or the opened LUKS volume
+          # what holds the btrfs: the partition, or the root logical volume in the LUKS volume
           rootPartition =
             if config.disko-layouts.luks.enable then
-              "/dev/mapper/${config.disko-layouts.luks.name}"
+              "/dev/mapper/${lvmVg}-root"
             else
               config.disko.devices.disk.root.content.partitions.root.device;
           device = "${utils.escapeSystemdPath rootPartition}.device";
@@ -442,7 +474,7 @@ withInputs
             disk-select.want.root = rootWant config.disko-layouts;
             disko-layouts.mountOptions = mkDefault btrfsOpts;
 
-            disko.devices.disk.root = rootDisk config {
+            disko.devices = rootDisk config {
               type = "btrfs";
               extraArgs = [ "-f" ];
               subvolumes = {

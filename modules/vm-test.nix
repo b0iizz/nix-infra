@@ -142,7 +142,7 @@ in
                   nix.settings.substituters = lib.mkForce [ ];
                 };
               target = {
-                # LUKS' key derivation takes 1 GiB, and root and swap are opened at once
+                # LUKS' key derivation takes 1 GiB
                 virtualisation.memorySize = 4096;
                 virtualisation.diskImage = "./target.qcow2";
                 virtualisation.useBootLoader = true;
@@ -187,7 +187,7 @@ in
 
               def boot():
                   target.start()
-                  # one passphrase for root and swap: a second prompt would time out below
+                  # one passphrase opens root and swap: a second prompt would time out below
                   ${ifLuks ''target.wait_for_console_text("Please enter passphrase")''}
                   ${ifLuks ''target.send_console("${passphrase}\n")''}
                   target.wait_for_unit("multi-user.target")
@@ -199,8 +199,8 @@ in
               with subtest("first boot has the layout, the host key and the kept state"):
                   target.succeed("findmnt ${persistDir} && findmnt /etc/ssh && findmnt /var/log")
                   assert target.succeed("cat /etc/ssh/ssh_host_ed25519_key.pub") == key, "not the installed host key"
-                  # swap, and so the hibernation image, is on the encrypted volume
-                  ${ifLuks ''target.succeed('test "$(swapon --show=NAME --noheadings)" = "$(readlink -f /dev/mapper/${luks.name}-swap)"')''}
+                  # swap, and so the hibernation image, is in the encrypted volume
+                  ${ifLuks ''target.succeed('test "$(swapon --show=NAME --noheadings)" = "$(readlink -f /dev/mapper/system-swap)"')''}
                   ${lib.optionalString (
                     resume != ""
                   ) ''target.succeed("grep -q 'resume=${resume}' /proc/cmdline")''}
@@ -218,7 +218,7 @@ in
                   target.fail("test -e /root/gone")
                   target.succeed("test \"$(cat /etc/machine-id)\" = \"$(cat /home/joni/Projects/machine-id)\"")
                   target.succeed("mkdir /top && mount -o subvolid=5 ${
-                    if luks.enable then "/dev/mapper/${luks.name}" else "/dev/disk/by-partlabel/disk-root-root"
+                    if luks.enable then "/dev/mapper/system-root" else "/dev/disk/by-partlabel/disk-root-root"
                   } /top")
                   target.succeed("test \"$(cat /top/old_roots/*/home/joni/gone)\" = gone")
             '';
