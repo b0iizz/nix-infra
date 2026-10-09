@@ -217,7 +217,7 @@ in
 
   # Opt-in per host (`roles = [ "niri" ]`), next to or instead of `hyprland`.
   # Takes what the other roles registered in `desktop.*`, like the Hyprland
-  # role does; there is no workspace widget for it yet.
+  # role does, and adds its workspace widget to the bar.
   flake.modules.nixos.niri =
     { config, pkgs, ... }:
     let
@@ -241,6 +241,12 @@ in
         name = "niri";
         exec = [ (lib.getExe' niri "niri-session") ];
         order = lib.mkDefault 20;
+      };
+
+      desktop.bar.items.NiriWorkspaces = {
+        position = "left";
+        order = 10;
+        qml = ./Workspaces.qml;
       };
     };
 }

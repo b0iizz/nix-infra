@@ -8,6 +8,8 @@ import Quickshell
 import Quickshell.Hyprland
 
 Row {
+    // set by Hyprland itself: the item stays out of the way in other compositors
+    visible: !!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
     spacing: 8
 
     Repeater {

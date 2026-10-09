@@ -1,6 +1,8 @@
-# Wallpaper daemon (awww, the successor of swww, for its transitions) and the
-# widget to change it. Imported by the quickshell role.
+# Wallpaper daemon (awww, the successor of swww, for its transitions, or the
+# lighter swaybg) and the widget to change it. Imported by the quickshell role
+# and by the `awww` and `swaybg` roles, which choose the daemon.
 #
+#   desktop.wallpaper.daemon      "awww" or "swaybg"
 #   desktop.wallpaper.directory   where the picker looks for images, by default
 #                                 a collection fetched from GitHub (below)
 #   desktop.wallpaper.default     shown when there is nothing to restore
@@ -20,11 +22,63 @@
   ...
 }:
 {
+  # Choose the daemon by role. Both are plain layer-shell clients, so they work
+  # in every compositor role. With both roles awww (priority 800) beats swaybg
+  # (900); with neither the option's default is awww.
+  flake.modules.nixos.awww = {
+    imports = [ self.modules.nixos.desktop-wallpaper ];
+    desktop.wallpaper.daemon = lib.mkOverride 800 "awww";
+  };
+  flake.modules.nixos.swaybg = {
+    imports = [ self.modules.nixos.desktop-wallpaper ];
+    desktop.wallpaper.daemon = lib.mkOverride 900 "swaybg";
+  };
+
   flake.modules.nixos.desktop-wallpaper =
     { config, pkgs, ... }:
     let
       cfg = config.desktop.wallpaper;
       awww = lib.getExe pkgs.awww;
+
+      # The picker runs `wallpaper-set <image>`, whatever the daemon is.
+      setAwww = pkgs.writeShellApplication {
+        name = "wallpaper-set";
+        text = ''
+          exec ${awww} img "$1" \
+            --transition-type ${cfg.transition.type} \
+            --transition-duration ${toString cfg.transition.duration} \
+            --transition-fps ${toString cfg.transition.fps}
+        '';
+      };
+
+      # swaybg has no memory and shows one image per process: remember the
+      # choice in a file, start the new process, then end the old ones.
+      state = "\${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current";
+      setSwaybg = pkgs.writeShellApplication {
+        name = "wallpaper-set";
+        runtimeInputs = [
+          pkgs.swaybg
+          pkgs.coreutils
+          pkgs.procps
+          pkgs.util-linux
+        ];
+        text = ''
+          mkdir -p "$(dirname "${state}")"
+          printf %s "$1" > "${state}"
+          mapfile -t old < <(pgrep -x swaybg || true)
+          setsid swaybg -i "$1" -m fill >/dev/null 2>&1 &
+          sleep 0.5
+          [ ''${#old[@]} -eq 0 ] || kill "''${old[@]}"
+        '';
+      };
+      restoreSwaybg = pkgs.writeShellApplication {
+        name = "wallpaper-restore";
+        text = ''
+          file=$(cat "${state}" 2>/dev/null || true)
+          [ -f "$file" ] || file=${lib.escapeShellArg (toString cfg.default)}
+          if [ -f "$file" ]; then exec ${lib.getExe setSwaybg} "$file"; fi
+        '';
+      };
 
       # Not a flake input: those are fetched again by every `nix flake update`.
       # To take newer images, change the rev and the hash.
@@ -64,6 +118,18 @@
       ];
 
       options.desktop.wallpaper = {
+        daemon = lib.mkOption {
+          type = lib.types.enum [
+            "awww"
+            "swaybg"
+          ];
+          default = "awww";
+          description = ''
+            awww has transitions, swaybg is the lighter one. Normally chosen by
+            the `awww` and `swaybg` roles; a host with both gets awww.
+          '';
+        };
+
         directory = lib.mkOption {
           type = lib.types.str;
           default = "${wallpapers}";
@@ -112,26 +178,24 @@
       };
 
       config = {
-        # the daemon's memory of the last image
-        persist.home.directories = [ ".cache/awww" ];
+        persist.home.directories =
+          if cfg.daemon == "awww" then
+            # the daemon's memory of the last image
+            [ ".cache/awww" ]
+          else
+            [ ".local/state/wallpaper" ];
 
-        desktop.startup = [
-          (lib.getExe' pkgs.awww "awww-daemon")
-        ]
-        ++ lib.optional (cfg.default != null) (lib.getExe setDefault);
+        desktop.startup =
+          if cfg.daemon == "awww" then
+            [ (lib.getExe' pkgs.awww "awww-daemon") ]
+            ++ lib.optional (cfg.default != null) (lib.getExe setDefault)
+          else
+            [ (lib.getExe restoreSwaybg) ];
 
         desktop.overlays.WallpaperPicker.qml = ./WallpaperPicker.qml;
         desktop.data.wallpaper = {
           inherit (cfg) directory;
-          inherit awww;
-          transition = [
-            "--transition-type"
-            cfg.transition.type
-            "--transition-duration"
-            (toString cfg.transition.duration)
-            "--transition-fps"
-            (toString cfg.transition.fps)
-          ];
+          set = lib.getExe (if cfg.daemon == "awww" then setAwww else setSwaybg);
         };
 
         desktop.bar.items.WallpaperButton = {

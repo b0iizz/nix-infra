@@ -234,6 +234,18 @@ in
         "quickshell"
         "greeter"
       ];
+      threeCompositors = host [
+        "hyprland"
+        "niri"
+        "sway"
+        "quickshell"
+        "swaybg"
+      ];
+      bothDaemons = host [
+        "quickshell"
+        "swaybg"
+        "awww"
+      ];
       noReader = hostWith { desktop.fingerprint = false; } [
         "hyprland"
         "quickshell"
@@ -369,6 +381,34 @@ in
             niriLauncher = true;
           };
         };
+        # every compositor has its own workspace widget, and swaybg is used
+        # unless awww is there too
+        testThreeCompositors = {
+          expr = {
+            items = lib.attrNames (quickshell threeCompositors).barItems;
+            sway = threeCompositors.programs.sway.enable;
+            daemons = [
+              full.desktop.wallpaper.daemon
+              threeCompositors.desktop.wallpaper.daemon
+              bothDaemons.desktop.wallpaper.daemon
+            ];
+          };
+          expected = {
+            items = [
+              "NiriWorkspaces"
+              "PowerButton"
+              "SwayWorkspaces"
+              "WallpaperButton"
+              "Workspaces"
+            ];
+            sway = true;
+            daemons = [
+              "awww"
+              "swaybg"
+              "awww"
+            ];
+          };
+        };
         testHyprlandAlone = {
           expr = {
             launcher = (hypr hyprOnly).launcher;
@@ -396,8 +436,12 @@ in
             grep -q 'PolkitAgent {}' $tree/shell.qml
             grep -q 'WallpaperPicker {}' $tree/shell.qml
             test -e $tree/WallpaperButton.qml
-            grep -q 'bin/awww"' $tree/ShellData.qml
-            grep -q '"--transition-type","grow"' $tree/ShellData.qml
+            grep -q 'bin/wallpaper-set"' $tree/ShellData.qml
+            grep -q -- '--transition-type grow' ${full.desktop.data.wallpaper.set}
+
+            # the swaybg scripts build (shellcheck) and the sway session finds its config
+            ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") threeCompositors.desktop.startup}
+            grep -q -- '--config /nix/store' ${lib.getExe' threeCompositors.programs.sway.package "sway"}
 
             # everything started with the session exists
             ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") full.desktop.startup}

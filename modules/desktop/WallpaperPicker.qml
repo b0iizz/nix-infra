@@ -1,6 +1,7 @@
 // Wallpaper widget: `quickshell ipc call wallpaper toggle` opens a grid of the
-// images in the wallpaper directory, a click hands one to awww (with the
-// transition of `desktop.wallpaper.transition`), Escape closes it.
+// images in the wallpaper directory, a click hands one to `wallpaper-set` (awww
+// with the transition of `desktop.wallpaper.transition`, or swaybg), Escape
+// closes it.
 import QtQuick
 import Qt.labs.folderlistmodel
 import Quickshell
@@ -11,8 +12,7 @@ Scope {
     id: root
 
     readonly property string directory: ShellData.wallpaper.directory
-    readonly property string awww: ShellData.wallpaper.awww
-    readonly property var transition: ShellData.wallpaper.transition
+    readonly property string setCommand: ShellData.wallpaper.set
     property bool shown: false
 
     function expand(path) {
@@ -25,7 +25,7 @@ Scope {
     }
 
     function set(file) {
-        Quickshell.execDetached([awww, "img", file].concat(transition));
+        Quickshell.execDetached([setCommand, file]);
         shown = false;
     }
 

@@ -35,6 +35,7 @@ withInputs
           "greeter"
           "niri"
           "hyprland"
+          "sway"
           "librewolf"
           "firefox"
           "alacritty"
