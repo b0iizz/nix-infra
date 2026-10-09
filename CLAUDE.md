@@ -14,11 +14,11 @@ A Nix flake for a small NixOS fleet: hosts, disk layouts, users, secrets, a Quic
 
 ## Rules that protect machines and secrets
 
-- IMPORTANT: never run `provision commit`, `provision facter|new --target`, `disko`, `deploy switch|boot|test` or `host-keys deploy|rotate` against a real machine or disk, this laptop included, without the user's explicit go for that run. `commit` wipes disks; `facter` and `new` with a target kexec a running machine into the installer; the others change live systems. `plan`, `list` and builds are fine.
+- IMPORTANT: never run `provision commit`, `provision facter|new --target`, `disko`, `deploy switch|boot|test` or `host-keys deploy|rotate` against a real machine or disk without the user's explicit go for that run. `commit` wipes disks; `facter` and `new` with a target kexec a running machine into the installer; the others change live systems. `plan`, `list` and builds are fine.
 - No plaintext secret in the repo. Secrets go through agenix-rekey. Commands that need the FIDO2 token (`agenix rekey -a`, `agenix generate`, `agenix edit`, `host-keys show|export|deploy`) are the user's: suggest `! agenix rekey -a` instead of running them.
 - Once a host is installed from this repo, changing its `disko-layouts.*` (layout, swap, LUKS) means reinstalling it. Say so before changing them.
 - `flake.nix` is generated: declare an input with `withInputs` in the module that needs it, then run `nix run .#write-flake`.
-- Work on a branch or worktree, never on `main`. There is no remote, so nothing to push: give the user the merge command.
+- Work on a branch or worktree, never on `main`. Do not push changes, give the user the merge command.
 
 ## Current state (2026-10-09)
 
