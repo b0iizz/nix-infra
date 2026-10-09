@@ -43,7 +43,10 @@ let
     default = "generated";
     description = ''
       `generated`: a random password is created with agenix-rekey
-      (`agenix generate`). The plaintext is kept as an intermediary secret
+      (`agenix generate`, tags `password`, `password-plain` and
+      `password-hash`: `agenix generate -f -t password-plain` replaces the
+      passwords, `agenix generate` alone only refreshes hashes of an edited
+      plaintext). The plaintext is kept as an intermediary secret
       that never reaches a host, only its yescrypt hash is deployed and
       used as `hashedPasswordFile`. Read the plaintext with
       `agenix edit` on `user-plain-<host>-<user>`.
@@ -282,12 +285,22 @@ in
           {
             # Only exists for the generator: 48 random alphanumerics.
             ${secretId "plain" user} = {
-              generator.script = "alnum";
+              generator = {
+                script = "alnum";
+                tags = [
+                  "password"
+                  "password-plain"
+                ];
+              };
               intermediary = true;
             };
             ${secretId "hash" user} = {
               generator = {
                 dependencies = [ plain ];
+                tags = [
+                  "password"
+                  "password-hash"
+                ];
                 script =
                   {
                     lib,
@@ -315,6 +328,7 @@ in
         holdsKey = user: elem hostName adminUsers.${user}.keyHosts;
         adminKeySecret = user: {
           ${adminSecretId user} = {
+            generator.tags = [ "admin-key" ];
             generator.script =
               {
                 lib,
