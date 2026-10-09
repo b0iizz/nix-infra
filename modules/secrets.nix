@@ -19,6 +19,18 @@ withInputs
       ...
     }@top:
     let
+      # One token per `<name>-identity.hmac` in secrets/master, with its public
+      # key in `<name>.pub` (`fido2-identity.hmac` + `fido2.pub`): add a backup
+      # token by dropping in a second pair, then `agenix rekey -a`.
+      masterDir = config.registry.secretsDir + "/master";
+      masterIdentities = lib.pipe (builtins.readDir masterDir) [
+        builtins.attrNames
+        (builtins.filter (lib.hasSuffix "-identity.hmac"))
+        (map (f: {
+          identity = masterDir + "/${f}";
+          pubkey = lib.fileContents (masterDir + "/${lib.removeSuffix "-identity.hmac" f}.pub");
+        }))
+      ];
       identified = lib.filterAttrs (_: host: host.hostkey.publicKeyFile != null) config.registry.hosts;
     in
     {
@@ -57,12 +69,7 @@ withInputs
 
           config = lib.mkIf (config.host-context.hostkey.publicKey != null) {
             age.rekey = {
-              masterIdentities = [
-                {
-                  identity = top.config.registry.secretsDir + "/master/fido2-identity.hmac";
-                  pubkey = lib.fileContents (top.config.registry.secretsDir + "/master/fido2.pub");
-                }
-              ];
+              inherit masterIdentities;
 
               agePlugins = [ pkgs.age-plugin-fido2-hmac ];
 

@@ -1,10 +1,15 @@
 # What every desktop session needs, whichever compositor and shell it has.
 # Imported by the quickshell role. Everything is `mkDefault`, hosts override.
-{ lib, ... }:
+{ self, lib, ... }:
 {
   flake.modules.nixos.desktop-session =
     { pkgs, ... }:
     {
+      imports = [ self.modules.nixos.persist ];
+
+      # volumes and default devices, or they reset on every boot
+      persist.home.directories = [ ".local/state/wireplumber" ];
+
       # the compositor's key binds call wpctl, brightnessctl and playerctl
       environment.systemPackages = with pkgs; [
         brightnessctl

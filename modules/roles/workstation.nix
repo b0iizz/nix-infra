@@ -81,9 +81,9 @@
 
       # a suspended laptop with an empty battery loses its session, so it
       # moves to the hibernation image after an hour (where there is one)
-      services.logind.settings.Login.HandleLidSwitch = lib.mkIf (
-        config.boot.resumeDevice != ""
-      ) (lib.mkDefault "suspend-then-hibernate");
+      services.logind.settings.Login.HandleLidSwitch = lib.mkIf (config.boot.resumeDevice != "") (
+        lib.mkDefault "suspend-then-hibernate"
+      );
       systemd.sleep.settings.Sleep.HibernateDelaySec = lib.mkDefault "1h";
 
       persist.directories = [
