@@ -35,6 +35,9 @@
         enable = true;
         plugins = [ pkgs.networkmanager-openvpn ];
       };
+      # NetworkManager does DHCP itself; facter's dhcpcd on the same interface
+      # fights it for the DHCPv6 port
+      hardware.facter.detected.dhcp.enable = false;
 
       services.gvfs.enable = true;
       programs.localsend.enable = true;
