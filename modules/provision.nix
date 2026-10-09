@@ -460,7 +460,10 @@ withInputs
                 if [ "$mode" = remote ]; then pin_target "$h"; fi
                 check_disks "$h"
                 confirm_wipe "$h"
-                host_keys export "$h" "$tmp"
+                # What is copied onto the new system, and nothing else: the
+                # scratch files ($tmp/luks.key, the pinned known_hosts) stay out.
+                local extra=$tmp/extra
+                host_keys export "$h" "$extra"
 
                 # An encrypted root needs its passphrase while disko formats.
                 luks_path=
@@ -481,7 +484,7 @@ withInputs
                   info "$h: committing to $dest"
                   # The private host key goes over this connection, so it only
                   # talks to the key pinned (and confirmed) above.
-                  nixos-anywhere --flake "$root#$h" --extra-files "$tmp" \
+                  nixos-anywhere --flake "$root#$h" --extra-files "$extra" \
                     --chown /etc/ssh/ssh_host_ed25519_key 0:0 \
                     "''${pinopts[@]}" \
                     "''${flags[@]}" "''${passthrough[@]}" "$dest"
@@ -495,7 +498,7 @@ withInputs
                   $sudo disko --mode destroy,format,mount --yes-wipe-all-disks --flake "$root#$h"
                   [ -z "$luks_path" ] || $sudo shred -u "$luks_path"
                   $sudo mkdir -p /mnt/etc
-                  $sudo cp -a "$tmp/etc/." /mnt/etc/
+                  $sudo cp -a "$extra/etc/." /mnt/etc/
                   $sudo chown -R root:root /mnt/etc/ssh
                   $sudo nixos-install --no-root-passwd --system "$system" "''${passthrough[@]}"
                 fi

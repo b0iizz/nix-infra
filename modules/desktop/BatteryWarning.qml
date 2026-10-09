@@ -19,7 +19,8 @@ Scope {
         const level = !draining ? 0 : percent <= cfg.critical ? 2 : percent <= cfg.low ? 1 : 0;
         if (level > warned)
             Quickshell.execDetached(["notify-send", "-a", "Battery", "-u", level === 2 ? "critical" : "normal", level === 2 ? "Battery critical" : "Battery low", percent + "% left"]);
-        warned = level;
+        // only charging resets it: a reading that wobbles around the limit warns once
+        warned = draining ? Math.max(warned, level) : 0;
     }
 
     onPercentChanged: check()

@@ -17,10 +17,9 @@ Scope {
 
     readonly property bool fingerprint: ShellData.fingerprint
     readonly property int maxFingerprintRetries: 5
+    readonly property string user: Quickshell.env("USER") ?? ""
     property bool failed: false
     property int fingerprintRetries: 0
-    // what awww shows now (its layer is hidden behind the lock)
-    property url wallpaper: ""
 
     function unlockOn(result) {
         if (result === PamResult.Success)
@@ -33,18 +32,6 @@ Scope {
 
         function lock(): void {
             sessionLock.locked = true;
-        }
-    }
-
-    Process {
-        id: query
-
-        command: [ShellData.wallpaper.awww, "query"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const m = text.match(/displaying: image: (.+)/);
-                root.wallpaper = m ? "file://" + m[1].trim() : "";
-            }
         }
     }
 
@@ -95,7 +82,6 @@ Scope {
 
         onLockedChanged: {
             if (locked) {
-                query.running = true;
                 root.failed = false;
                 root.fingerprintRetries = 0;
                 password.start();
@@ -112,9 +98,11 @@ Scope {
         WlSessionLockSurface {
             AuthView {
                 anchors.fill: parent
-                wallpaper: root.wallpaper
-                users: [Quickshell.env("USER") ?? ""]
-                user: Quickshell.env("USER") ?? ""
+                // the copy of the current one (modules/desktop/wallpaper.nix)
+                wallpaper: "file://" + ShellData.wallpaper.saved + "/" + root.user
+                fallback: ShellData.wallpaper.default ? "file://" + ShellData.wallpaper.default : ""
+                users: [root.user]
+                user: root.user
                 inputEnabled: password.responseRequired
                 message: root.failed ? "Wrong password" : (finger.active ? finger.message : "")
                 isError: root.failed || (finger.active && finger.messageIsError)

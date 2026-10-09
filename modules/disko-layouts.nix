@@ -90,6 +90,19 @@ withInputs
         config: rootContent:
         let
           cfg = config.disko-layouts;
+          # swap and root each in a LUKS volume of their own, with the same
+          # passphrase: the initrd asks once and tries it on both
+          encrypted =
+            name: content:
+            if cfg.luks.enable then
+              {
+                type = "luks";
+                inherit name content;
+                passwordFile = cfg.luks.passwordFile;
+                settings.allowDiscards = true;
+              }
+            else
+              content;
         in
         {
           device = config.disk-select.result.root;
@@ -111,7 +124,7 @@ withInputs
             // lib.optionalAttrs (cfg.swap.bytes > 0) {
               swap = {
                 size = toDiskoSize cfg.swap.bytes;
-                content = {
+                content = encrypted "${cfg.luks.name}-swap" {
                   type = "swap";
                   discardPolicy = "both";
                   resumeDevice = cfg.swap.hibernation;
@@ -121,17 +134,7 @@ withInputs
             // {
               root = {
                 size = "100%";
-                content =
-                  if cfg.luks.enable then
-                    {
-                      type = "luks";
-                      name = cfg.luks.name;
-                      passwordFile = cfg.luks.passwordFile;
-                      settings.allowDiscards = true;
-                      content = rootContent;
-                    }
-                  else
-                    rootContent;
+                content = encrypted cfg.luks.name rootContent;
               };
             };
           };
@@ -229,17 +232,17 @@ withInputs
                 type = types.bool;
                 default = false;
                 description = ''
-                  Encrypt the root filesystem with LUKS2 (root layouts only). The
-                  passphrase is asked for at boot. `provision commit` asks for it
-                  and hands it to disko, nothing keeps it. The swap partition is
-                  not encrypted, so hibernation is refused and plain swap warns.
+                  Encrypt the root filesystem and the swap partition, and so the
+                  hibernation image, with LUKS2 (root layouts only). The passphrase
+                  is asked for once at boot. `provision commit` asks for it and
+                  hands it to disko, nothing keeps it.
                 '';
               };
 
               name = mkOption {
                 type = types.str;
                 default = "cryptroot";
-                description = "Name of the opened volume under /dev/mapper.";
+                description = "Name of the opened root volume under /dev/mapper; the swap volume is `<name>-swap`.";
               };
 
               passwordFile = mkOption {
@@ -308,10 +311,6 @@ withInputs
               in
               hibernation + (if cfg.swap.size == null then 0 else parseSize cfg.swap.size);
 
-            warnings = lib.optional (
-              cfg.luks.enable && cfg.swap.bytes > 0
-            ) "disko-layouts: swap is not encrypted (luks.enable only covers the root filesystem).";
-
             assertions =
               lib.mapAttrsToList (mountpoint: claims: {
                 assertion = lib.length claims <= 1;
@@ -320,10 +319,6 @@ withInputs
                 }, which contradict; import only one of them (raid and data can instead be moved apart with their `mountpoint` option).";
               }) byMountpoint
               ++ [
-                {
-                  assertion = !(cfg.luks.enable && cfg.swap.hibernation);
-                  message = "disko-layouts: the hibernation image would be written to the unencrypted swap partition; turn off swap.hibernation or luks.enable.";
-                }
                 {
                   assertion = cfg.swap.bytes == 0 || lib.any (c: c.mountpoint == "/") cfg.claims;
                   message = "disko-layouts: swap.size/swap.hibernation are set but no root layout (disko-root-*) is imported to apply them.";

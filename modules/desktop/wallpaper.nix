@@ -8,14 +8,18 @@
 #   desktop.wallpaper.default     shown when there is nothing to restore
 #   desktop.wallpaper.transition  what awww animates between two wallpapers
 #
-# The daemon is started with the session (`desktop.startup`); it keeps the
-# last image in its own cache and shows it again when it starts, so the choice
-# is not stored here. Only when it has nothing to show (first start, or the
-# remembered file is gone) the default is set. The widget is the
-# `WallpaperPicker` overlay: a grid of
+# The daemon is started with the session (`desktop.startup`). awww keeps the
+# last image in its own cache and shows it again when it starts; only when it
+# has nothing to show (first start, or the remembered file is gone) the
+# default is set. The widget is the `WallpaperPicker` overlay: a grid of
 # thumbnails, a click sets the wallpaper. Open it with
 # `quickshell ipc call wallpaper toggle`, from the "Wallpaper" launcher
 # entry or the bar button.
+#
+# Setting one also copies it to /var/lib/wallpaper/<user>, readable by all:
+# the lock screen shows it, and so does the login screen, which runs as
+# another user and cannot look into the homes; swaybg starts from it. Both
+# screens show the default for a user who has not chosen one yet.
 {
   self,
   lib,
@@ -40,20 +44,26 @@
       cfg = config.desktop.wallpaper;
       awww = lib.getExe pkgs.awww;
 
-      # The picker runs `wallpaper-set <image>`, whatever the daemon is.
+      # each user's current wallpaper, `<saved>/<user>` (see the top)
+      saved = "/var/lib/wallpaper";
+      current = "${saved}/$(id -un)";
+
+      # The picker runs `wallpaper-set <image>`, whatever the daemon is. The
+      # copy comes last: if it fails, the wallpaper is changed all the same.
       setAwww = pkgs.writeShellApplication {
         name = "wallpaper-set";
+        runtimeInputs = [ pkgs.coreutils ];
         text = ''
-          exec ${awww} img "$1" \
+          ${awww} img "$1" \
             --transition-type ${cfg.transition.type} \
             --transition-duration ${toString cfg.transition.duration} \
             --transition-fps ${toString cfg.transition.fps}
+          cp -- "$1" "${current}"
         '';
       };
 
-      # swaybg has no memory and shows one image per process: remember the
-      # choice in a file, start the new process, then end the old ones.
-      state = "\${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current";
+      # swaybg has no memory and shows one image per process: start the new
+      # process, then end the old ones.
       setSwaybg = pkgs.writeShellApplication {
         name = "wallpaper-set";
         runtimeInputs = [
@@ -63,20 +73,24 @@
           pkgs.util-linux
         ];
         text = ''
-          mkdir -p "$(dirname "${state}")"
-          printf %s "$1" > "${state}"
           mapfile -t old < <(pgrep -x swaybg || true)
           setsid swaybg -i "$1" -m fill >/dev/null 2>&1 &
           sleep 0.5
           [ ''${#old[@]} -eq 0 ] || kill "''${old[@]}"
+          cp -- "$1" "${current}"
         '';
       };
+      # Not through wallpaper-set: the copy would be copied onto itself.
       restoreSwaybg = pkgs.writeShellApplication {
         name = "wallpaper-restore";
+        runtimeInputs = [
+          pkgs.swaybg
+          pkgs.coreutils
+        ];
         text = ''
-          file=$(cat "${state}" 2>/dev/null || true)
-          [ -f "$file" ] || file=${lib.escapeShellArg (toString cfg.default)}
-          if [ -f "$file" ]; then exec ${lib.getExe setSwaybg} "$file"; fi
+          file="${current}"
+          [ -s "$file" ] || file=${lib.escapeShellArg (toString cfg.default)}
+          if [ -f "$file" ]; then exec swaybg -i "$file" -m fill; fi
         '';
       };
 
@@ -178,12 +192,17 @@
       };
 
       config = {
-        persist.home.directories =
-          if cfg.daemon == "awww" then
-            # the daemon's memory of the last image
-            [ ".cache/awww" ]
-          else
-            [ ".local/state/wallpaper" ];
+        # awww's memory of the last image
+        persist.home.directories = lib.optional (cfg.daemon == "awww") ".cache/awww";
+        persist.directories = [ saved ];
+
+        # one file per user, which only that user may write
+        systemd.tmpfiles.rules = [
+          "d ${saved} 0755 root root -"
+        ]
+        ++ lib.mapAttrsToList (name: u: "f ${saved}/${name} 0644 ${name} ${u.group} -") (
+          lib.filterAttrs (_: u: u.isNormalUser) config.users.users
+        );
 
         desktop.startup =
           if cfg.daemon == "awww" then
@@ -194,7 +213,8 @@
 
         desktop.overlays.WallpaperPicker.qml = ./WallpaperPicker.qml;
         desktop.data.wallpaper = {
-          inherit (cfg) directory;
+          inherit (cfg) directory default;
+          inherit saved;
           set = lib.getExe (if cfg.daemon == "awww" then setAwww else setSwaybg);
         };
 

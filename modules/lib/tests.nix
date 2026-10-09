@@ -175,6 +175,33 @@ let
       });
       expected = true;
     };
+    testSlotsPinnedChecked = {
+      # pins past either end, and a pin that is not in `keys` but fills the space
+      expr =
+        map
+          (
+            pinned:
+            fails (stableSlots {
+              salt = "net";
+              capacity = 2;
+              keys = [
+                "a"
+                "b"
+              ];
+              inherit pinned;
+            })
+          )
+          [
+            { a = 2; }
+            { a = -1; }
+            { c = 0; }
+          ];
+      expected = [
+        true
+        true
+        true
+      ];
+    };
 
     # -- parseSize -----------------------------------------------------------
     testParseSize = {

@@ -6,7 +6,9 @@
 #   settings.sessions [ { name, exec } ] to choose from, the first is the default
 #                     (greetd runs the argv as the user)
 #   settings.fingerprint  mention the reader in the hint
-#   settings.wallpaper    image shown behind the form, null for none
+#   settings.wallpaper    `{ saved, default }`: behind the form the chosen
+#                         user's current image, `<saved>/<user>`, or `default`
+#                         (modules/desktop/wallpaper.nix); null for none
 #
 # The role `greeter` fills these from the host: its normal users and
 # `desktop.sessions`, which the compositor roles fill. As each is the wrapped
@@ -66,9 +68,7 @@ let
                 (qml.property "var" "users" (builtins.toJSON s.users))
                 (qml.property "var" "sessions" (builtins.toJSON s.sessions))
                 (qml.property "bool" "fingerprint" (lib.boolToString s.fingerprint))
-                (qml.property "string" "wallpaper" (
-                  builtins.toJSON (if s.wallpaper == null then "" else s.wallpaper)
-                ))
+                (qml.property "var" "wallpaper" (builtins.toJSON s.wallpaper))
               ]
             );
           "Greeter.qml" = _: ./Greeter.qml;
@@ -103,7 +103,7 @@ in
               )
             );
           fingerprint = _: config.desktop.fingerprint;
-          wallpaper = _: config.desktop.wallpaper.default;
+          wallpaper = _: { inherit (config.desktop.data.wallpaper) saved default; };
         };
       };
     in

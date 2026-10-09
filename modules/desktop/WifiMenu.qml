@@ -28,6 +28,11 @@ Menu {
             return n.security === WifiSecurityType.Open || n.security === WifiSecurityType.Owe;
         }
 
+        // logs in with an account (set up with nmcli), not with a password asked here
+        function enterprise(n) {
+            return [WifiSecurityType.Wpa2Eap, WifiSecurityType.WpaEap, WifiSecurityType.Wpa3SuiteB192, WifiSecurityType.DynamicWep, WifiSecurityType.Leap].includes(n.security);
+        }
+
         function label(n) {
             const state = n.state === ConnectionState.Connecting ? "  connecting" : n.connected ? "  connected" : n.known ? "  known" : "";
             return n.name + "  " + Math.round(n.signalStrength * 100) + "%" + (open(n) ? "" : "  secured") + state;
@@ -59,9 +64,11 @@ Menu {
                 n.connect();
         }
 
+        // A failed new network is saved anyway, with the wrong password, so a
+        // retry asks again (connectWithPsk replaces the saved one).
         function retry() {
             failure = "";
-            needsPassword = !(attempt.known || open(attempt));
+            needsPassword = !(open(attempt) || enterprise(attempt));
             if (!needsPassword)
                 attempt.connect();
         }

@@ -14,8 +14,10 @@ Rectangle {
     property alias hint: form.hint
     property alias inputEnabled: form.inputEnabled
     property alias echo: form.echo
-    // image behind everything, empty for none
+    // image behind everything, empty for none, and the one shown where it
+    // cannot be read (a user who has not chosen one yet)
     property url wallpaper
+    property url fallback
 
     signal submitted(string text)
     signal userChosen(string name)
@@ -24,9 +26,21 @@ Rectangle {
 
     Image {
         anchors.fill: parent
+        source: own.status === Image.Error ? view.fallback : ""
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        sourceSize: Qt.size(view.width, view.height)
+    }
+
+    Image {
+        id: own
+
+        anchors.fill: parent
         source: view.wallpaper
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
+        // the file stays the same, its content changes with every pick
+        cache: false
         sourceSize: Qt.size(view.width, view.height)
     }
 

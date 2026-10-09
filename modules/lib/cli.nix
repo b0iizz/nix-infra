@@ -89,7 +89,7 @@ let
       runtimeInputs,
       completion,
       text,
-    }:
+    }@args:
     let
       completionFile = pkgs.writeText "${name}.bash" completion;
       script = pkgs.writeShellApplication {
@@ -119,6 +119,9 @@ let
         install -Dm644 ${completionFile} $out/share/bash-completion/completions/${name}
       '';
       meta.mainProgram = name;
+      # The same tool calling other programs: they come first on its PATH, so
+      # a test can stand in for nix, ssh, ... (see modules/vm-test.nix).
+      passthru.withRuntimeInputs = runtimeInputs: mkCli pkgs (args // { inherit runtimeInputs; });
     };
 
   shellFor = tool: {

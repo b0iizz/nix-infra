@@ -23,7 +23,8 @@ let
   # A key's preferred slot is a hash of `salt` and the key; on a collision
   # it is rehashed. Keys claim slots in hash order (not alphabetical), so
   # adding or removing a key can only move keys that collide with it.
-  # Slots in `pinned` (key -> slot) are taken first and never move.
+  # Slots in `pinned` (key -> slot, also in [0, capacity)) are taken first and
+  # never move.
   #
   # Example: stableSlots { salt = "net"; capacity = 254; keys = [ "a" "b" ]; pinned = { }; }
   stableSlots =
@@ -76,9 +77,16 @@ let
             slots = pinned;
           }
           order;
+
+      # a pinned key is a key too: uncounted, it could fill the space and
+      # leave `probe` looking forever
+      count = length (lib.unique (keys ++ attrNames pinned));
+      outside = filter (k: pinned.${k} < 0 || pinned.${k} >= capacity) (attrNames pinned);
     in
-    if length keys > capacity then
-      throw "stableSlots: ${toString (length keys)} keys do not fit into ${toString capacity} slots"
+    if outside != [ ] then
+      throw "stableSlots: the pinned slots of ${toString outside} are outside 0..${toString (capacity - 1)}"
+    else if count > capacity then
+      throw "stableSlots: ${toString count} keys do not fit into ${toString capacity} slots"
     else
       result.slots;
 in

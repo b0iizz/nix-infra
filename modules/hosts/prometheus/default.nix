@@ -52,6 +52,9 @@ withInputs
               # hibernation image as big as the RAM, plus 32 GiB of ordinary swap
               disko-layouts.swap.hibernation = true;
               disko-layouts.swap.size = "32GiB";
+              # a laptop gets lost: the disk is encrypted, swap and the
+              # hibernation image with it
+              disko-layouts.luks.enable = true;
 
               hardware.fw-fanctrl.enable = true;
               services.hardware.bolt.enable = true;

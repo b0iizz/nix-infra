@@ -534,8 +534,9 @@ in
           };
           expected = {
             launcher = true;
-            # the shell, the wallpaper daemon and the default wallpaper
-            startup = 3;
+            # the shell, the wallpaper daemon, the default wallpaper and the
+            # lock before sleep
+            startup = 4;
           };
         };
         testFingerprint = {
@@ -646,11 +647,27 @@ in
             startup = [ ];
           };
         };
+        # the copy of the current wallpaper: the user may write it, the login screen read it
+        testWallpaperCopy = {
+          expr = lib.elem "f /var/lib/wallpaper/joni 0644 joni users -" full.systemd.tmpfiles.rules;
+          expected = true;
+        };
       };
       failed = lib.runTests tests;
+
+      # what ShellData holds on the full host
+      shellData = pkgs.writeText "shell-data.json" (
+        builtins.toJSON (
+          (quickshell full).data
+          // {
+            inherit ((quickshell full)) workspaces;
+            launcherEntries = lib.attrValues (quickshell full).launcherEntries;
+          }
+        )
+      );
     in
     {
-      checks.desktop-roles = pkgs.runCommand "check-desktop-roles" { } (
+      checks.desktop-roles = pkgs.runCommand "check-desktop-roles" { nativeBuildInputs = [ pkgs.jq ]; } (
         if failed == [ ] then
           # what the roles registered ends up in the tree of the wrapper
           ''
@@ -666,6 +683,22 @@ in
             test -e $tree/WallpaperButton.qml
             grep -q 'bin/wallpaper-set"' $tree/ShellData.qml
             grep -q -- '--transition-type grow' ${full.desktop.data.wallpaper.set}
+
+            # every ShellData.<name>.<key> the QML reads is set by some module
+            grep -oh 'ShellData\.[A-Za-z]*\.[A-Za-z]*' $tree/*.qml | sort -u |
+              while IFS=. read -r _ name key; do
+                jq -e --arg n "$name" --arg k "$key" 'has($n) and (.[$n] | type != "object" or has($k))' \
+                  ${shellData} >/dev/null || { echo "QML reads ShellData.$name.$key, nothing sets it" >&2; exit 1; }
+              done
+
+            # both setters keep the copy the lock and login screens show
+            grep -q 'cp -- "$1" "/var/lib/wallpaper/' ${full.desktop.data.wallpaper.set}
+            grep -q 'cp -- "$1" "/var/lib/wallpaper/' ${threeCompositors.desktop.data.wallpaper.set}
+
+            # every sleep locks first, the lid's too
+            grep -q "before-sleep 'quickshell ipc call lock lock; sleep 1'" ${
+              lib.findFirst (lib.hasInfix "lock-before-sleep") "" full.desktop.startup
+            }
 
             # the swaybg scripts build (shellcheck) and the sway session finds its config
             ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") threeCompositors.desktop.startup}
@@ -694,6 +727,7 @@ in
             gtree=$(grep -o "path /nix/store/[^ ']*" $greeter | head -1 | cut -d' ' -f2)
             grep -q '"joni"' $gtree/GreeterData.qml
             grep -q 'bin/start-hyprland' $gtree/GreeterData.qml
+            grep -q '"saved":"/var/lib/wallpaper"' $gtree/GreeterData.qml
 
             # with two compositors the greeter offers both, hyprland first
             g2=${lib.last (lib.splitString " " twoCompositors.services.greetd.settings.default_session.command)}
