@@ -60,10 +60,12 @@ Scope {
                         border.color: critical ? Theme.base08 : Theme.base03
                         border.width: 1
 
-                        // expireTimeout is in seconds, 0 means never, -1 the daemon's choice
+                        // expireTimeout is the sender's milliseconds (Quickshell 0.3.1
+                        // documents seconds but passes D-Bus through), 0 means never,
+                        // -1 the daemon's choice
                         Timer {
                             running: !popup.critical && popup.modelData.expireTimeout !== 0
-                            interval: popup.modelData.expireTimeout > 0 ? popup.modelData.expireTimeout * 1000 : root.defaultTimeout
+                            interval: popup.modelData.expireTimeout > 0 ? popup.modelData.expireTimeout : root.defaultTimeout
                             onTriggered: popup.modelData.expire()
                         }
 
