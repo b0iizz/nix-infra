@@ -263,6 +263,10 @@ in
         "swaybg"
         "awww"
       ];
+      withDrives = host [
+        "quickshell"
+        "removable-media"
+      ];
       noReader = hostWith { desktop.fingerprint = false; } [
         "hyprland"
         "quickshell"
@@ -614,6 +618,24 @@ in
             ];
           };
         };
+        # external drives: the item, its menu and the launcher entry reach the
+        # shell, and udiskie is started with the session
+        testRemovableMedia = {
+          expr = {
+            item = (quickshell withDrives).barItems ? Drives;
+            overlay = (quickshell withDrives).overlays ? DrivesMenu;
+            entry = (quickshell withDrives).launcherEntries ? drives-menu;
+            udiskie = lib.any (lib.hasInfix "udiskie") withDrives.desktop.startup;
+            udisks = withDrives.services.udisks2.enable;
+          };
+          expected = {
+            item = true;
+            overlay = true;
+            entry = true;
+            udiskie = true;
+            udisks = true;
+          };
+        };
         testHyprlandAlone = {
           expr = {
             launcher = (hypr hyprOnly).launcher;
@@ -648,6 +670,13 @@ in
             # the swaybg scripts build (shellcheck) and the sway session finds its config
             ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") threeCompositors.desktop.startup}
             grep -q -- '--config /nix/store' ${lib.getExe' threeCompositors.programs.sway.package "sway"}
+
+            # the drives widget and its menu are in the tree
+            dtree=${(quickshellPackage withDrives).passthru.config.dir}
+            grep -q 'DrivesMenu {}' $dtree/shell.qml
+            grep -q 'Drives {}' $dtree/Bar.qml
+            test -e $dtree/DriveList.qml
+            grep -q 'DriveList' $dtree/qmldir
 
             # everything started with the session exists
             ${lib.concatMapStringsSep "\n" (c: "test -x ${c}") full.desktop.startup}

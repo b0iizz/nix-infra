@@ -32,6 +32,7 @@ withInputs
         ]
         ++ lib.optionals graphical [
           "quickshell"
+          "removable-media"
           "greeter"
           "niri"
           "hyprland"
