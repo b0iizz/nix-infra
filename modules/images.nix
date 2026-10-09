@@ -137,6 +137,10 @@ withInputs
               ];
 
               networking.hostName = "nixos-installer";
+
+              # `provision` decrypts the host key with the FIDO2 token as the
+              # installer's normal user, which needs the token's udev rules
+              services.udev.packages = [ pkgs.libfido2 ];
               # NetworkManager (from the installation-device profile) is far
               # bigger than networkd + iwd; sshd is the only service to reach.
               networking.networkmanager.enable = lib.mkForce false;

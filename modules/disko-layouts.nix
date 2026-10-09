@@ -398,7 +398,6 @@ withInputs
             else
               config.disko.devices.disk.root.content.partitions.root.device;
           device = "${utils.escapeSystemdPath rootPartition}.device";
-          keep = toString cfg.keepOldRootsDays;
         in
         {
           imports = [
@@ -472,37 +471,10 @@ withInputs
               before = [ "sysroot.mount" ];
               unitConfig.DefaultDependencies = "no";
               serviceConfig.Type = "oneshot";
-              script = ''
-                mkdir -p /btrfs-top
-                mount -t btrfs -o subvolid=5 ${rootPartition} /btrfs-top
-
-                if [ -e /btrfs-top/root ]; then
-                  ${
-                    if cfg.keepOldRootsDays == 0 then
-                      "btrfs subvolume delete --recursive /btrfs-top/root"
-                    else
-                      ''
-                        # Named and dated after when it was retired (now). The
-                        # root's own mtime is roughly when it was created, so a
-                        # root older than the limit would be deleted at once.
-                        mkdir -p /btrfs-top/old_roots
-                        stamp=$(date "+%Y-%m-%d_%H:%M:%S")
-                        mv /btrfs-top/root "/btrfs-top/old_roots/$stamp"
-                        touch "/btrfs-top/old_roots/$stamp"
-                      ''
-                  }
-                fi
-
-                if [ -d /btrfs-top/old_roots ]; then
-                  find /btrfs-top/old_roots -mindepth 1 -maxdepth 1 -mtime +${keep} |
-                    while read -r old; do
-                      btrfs subvolume delete --recursive "$old"
-                    done
-                fi
-
-                btrfs subvolume create /btrfs-top/root
-                umount /btrfs-top
-              '';
+              script = self.lib.impermanence.rollbackScript {
+                partition = rootPartition;
+                keepDays = cfg.keepOldRootsDays;
+              };
             };
 
             # The script's tools; the initrd only has what is listed.

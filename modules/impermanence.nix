@@ -25,7 +25,8 @@ withInputs { preservation.url = "github:nix-community/preservation"; } (
         preservation = {
           enable = true;
           preserveAt.${config.disko-layouts.impermanence.persistDir} = {
-            directories = config.persist.directories;
+            # several modules may ask for the same path (fprint, ...)
+            directories = lib.unique config.persist.directories;
             files = [
               {
                 file = "/etc/machine-id";

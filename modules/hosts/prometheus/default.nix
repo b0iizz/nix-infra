@@ -19,7 +19,7 @@ withInputs
     {
       registry.hosts.prometheus = {
         path = ./.;
-        stateVersion = "26.05";
+        stateVersion = "26.11";
 
         # installed from itself, booted from the installer stick
         provision.method = "local";
@@ -37,7 +37,6 @@ withInputs
           "hyprland"
           "sway"
           "librewolf"
-          "firefox"
           "alacritty"
           "office"
           "gaming"
@@ -49,11 +48,19 @@ withInputs
             {
               imports = [ inputs.nixos-hardware.nixosModules.framework-13th-gen-intel ];
 
-              # hibernation image, as big as the RAM
+              # hibernation image as big as the RAM, plus 32 GiB of ordinary swap
               disko-layouts.swap.hibernation = true;
+              disko-layouts.swap.size = "32GiB";
 
               hardware.fw-fanctrl.enable = true;
               services.hardware.bolt.enable = true;
+              # the authorised Thunderbolt devices
+              persist.directories = [ "/var/lib/boltd" ];
+
+              programs.git.config.user = {
+                name = "Jonathan Grebe";
+                email = "joni.grebe@gmail.com";
+              };
 
               environment.systemPackages = [ pkgs.wget ];
             }
