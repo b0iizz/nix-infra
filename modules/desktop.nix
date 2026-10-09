@@ -303,6 +303,7 @@ in
               "Workspaces"
             ];
             overlays = [
+              "Idle"
               "LockScreen"
               "NetworkMenu"
               "Notifications"
@@ -387,6 +388,51 @@ in
             wifiMenuWhenOn = true;
           };
         };
+        # the idle daemon is on, the battery warnings follow the hardware; both can be switched
+        testIdleAndBattery =
+          let
+            overlays = c: lib.attrNames (quickshell c).overlays;
+            off = hostWith {
+              desktop.idle.enable = false;
+              desktop.batteryWarning.enable = true;
+            } [ "quickshell" ];
+          in
+          {
+            expr = {
+              idle = lib.elem "Idle" (overlays shellOnly);
+              warnings = lib.elem "BatteryWarning" (overlays shellOnly);
+              idleOff = lib.elem "Idle" (overlays off);
+              warningsOn = lib.elem "BatteryWarning" (overlays off);
+              data = (quickshell shellOnly).data.idle;
+              libnotify = lib.length (
+                lib.filter (p: p.pname or "" == "libnotify") off.environment.systemPackages
+              );
+            };
+            expected = {
+              idle = true;
+              warnings = false;
+              idleOff = false;
+              warningsOn = true;
+              data = {
+                dim = 240;
+                lock = 300;
+                suspend = 900;
+                lockCommand = [
+                  "quickshell"
+                  "ipc"
+                  "call"
+                  "lock"
+                  "lock"
+                ];
+                suspendCommand = [
+                  "sh"
+                  "-c"
+                  "quickshell ipc call lock lock; sleep 1; systemctl suspend"
+                ];
+              };
+              libnotify = 1;
+            };
+          };
         testShellAlone = {
           expr = {
             entries = lib.attrNames (quickshell shellOnly).launcherEntries;
