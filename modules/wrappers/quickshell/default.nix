@@ -265,6 +265,7 @@ in
 
       environment.systemPackages = [ quickshell ];
       desktop.startup = [ (lib.getExe quickshell) ];
+      desktop.data.terminal = config.desktop.terminal;
       desktop.launcherCommand = "${lib.getExe quickshell} ipc call launcher toggle";
     };
 }

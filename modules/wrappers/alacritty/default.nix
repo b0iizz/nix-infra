@@ -83,7 +83,17 @@ in
   # Opt-in per host (`roles = [ "alacritty" ]`), not part of `base`.
   flake.modules.nixos.alacritty =
     { pkgs, ... }:
+    let
+      alacritty = self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty;
+    in
     {
-      environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.alacritty ];
+      imports = [ self.modules.nixos.desktop ];
+
+      environment.systemPackages = [ alacritty ];
+      # what the launcher runs the applications that want a terminal in
+      desktop.terminal = lib.mkDefault [
+        (lib.getExe alacritty)
+        "-e"
+      ];
     };
 }

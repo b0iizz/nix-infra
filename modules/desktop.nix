@@ -27,6 +27,7 @@
 #   desktop.sessions          { name, exec (argv), order }  sessions a greeter offers
 #   desktop.startup         commands the compositor starts with the session
 #   desktop.launcherCommand   command that toggles the launcher, if there is one
+#   desktop.terminal          argv that runs a command in a terminal (alacritty role)
 {
   lib,
   self,
@@ -188,6 +189,16 @@ in
       launcherCommand = mkOption {
         type = types.nullOr types.str;
         default = null;
+      };
+
+      terminal = mkOption {
+        type = types.nullOr (types.listOf types.str);
+        default = null;
+        description = ''
+          argv that runs the rest of the command line in a terminal, e.g.
+          `[ "alacritty" "-e" ]`; set by the terminal's role. Without it the
+          launcher leaves out the applications that want a terminal.
+        '';
       };
     };
   };
@@ -433,6 +444,20 @@ in
               libnotify = 1;
             };
           };
+        # the launcher runs terminal applications in the terminal's role, and hides them without one
+        testTerminal = {
+          expr = {
+            alacritty = map (a: baseNameOf a) (quickshell full).data.terminal;
+            none = (quickshell shellOnly).data.terminal;
+          };
+          expected = {
+            alacritty = [
+              "alacritty"
+              "-e"
+            ];
+            none = null;
+          };
+        };
         testShellAlone = {
           expr = {
             entries = lib.attrNames (quickshell shellOnly).launcherEntries;
