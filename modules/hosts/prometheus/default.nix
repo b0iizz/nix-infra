@@ -14,7 +14,7 @@ withInputs
   (
     { inputs, self, ... }:
     let
-      graphical = false;
+      graphical = true;
     in
     {
       registry.hosts.prometheus = {
@@ -29,8 +29,6 @@ withInputs
           "workstation"
           "laptop"
           "programming"
-        ]
-        ++ lib.optionals graphical [
           "quickshell"
           "removable-media"
           "greeter"
@@ -72,8 +70,7 @@ withInputs
               environment.systemPackages = [ pkgs.wget ];
             }
           )
-        ]
-        ++ lib.optional graphical (
+          (
           { pkgs, ... }:
           {
             # niri until the Hyprland setup is finished
@@ -95,7 +92,7 @@ withInputs
               gnome-network-displays
             ]);
           }
-        );
+        )];
       };
 
       # the key to the other hosts lives on the machine it is used from
