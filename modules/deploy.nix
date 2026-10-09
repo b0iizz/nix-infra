@@ -219,7 +219,7 @@ in
           # Everything per-host runs in a subshell, so it can run in parallel.
           deploy_one() {
             local h=$1 action=$2 build_on_target flags=()
-            flags=(--flake "$root#$h" --fast)
+            flags=(--flake "$root#$h" --no-reexec)
             resolve_target "$h"
 
             # `build` contacts nothing, so it skips the local/remote question.
