@@ -60,7 +60,8 @@
         };
       };
 
-      # the right click menus; a widget that is off leaves its menu out as well
+      # the right click menus; a widget that is off leaves its menu out as
+      # well. Their frame is also the power menu's and the wallpaper picker's.
       desktop.components = {
         Menu.qml = ./Menu.qml;
         MenuRow.qml = ./MenuRow.qml;

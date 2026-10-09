@@ -1,5 +1,5 @@
 // Launcher: `quickshell ipc call launcher toggle` opens it, typing filters,
-// Up/Down select, Enter runs, Escape closes.
+// Up/Down select, Enter runs, Escape or a click next to it closes.
 //
 // It offers every desktop entry on the system (XDG_DATA_DIRS), so programs
 // need not register anything, plus `desktop.launcher.entries` for what has no
@@ -174,15 +174,40 @@ Scope {
                 root.shown = false;
             }
 
+            // the whole screen, so that a click next to the box closes it
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            implicitWidth: 480
-            implicitHeight: 48 + 28 * matches.length
-            color: Qt.alpha(Theme.base00, Theme.opacityPopups)
+            color: "transparent"
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                onClicked: root.shown = false
+            }
+
+            Rectangle {
+                id: box
+
+                anchors.centerIn: parent
+                width: 480
+                height: 48 + 28 * window.matches.length
+                color: Qt.alpha(Theme.base00, Theme.opacityPopups)
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                }
+            }
 
             Column {
-                anchors.fill: parent
+                anchors.fill: box
                 anchors.margins: 8
                 spacing: 4
 
