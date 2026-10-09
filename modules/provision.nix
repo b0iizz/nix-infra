@@ -130,7 +130,8 @@ withInputs
                 commit asks you to type the host name, checks that the planned
                 disks exist on the target, and pins the ssh host key the target
                 presents (compare its fingerprint with the installer's console)
-                before the host's private key is sent.
+                before the host's private key is sent. --local runs only on the
+                installer ISO, and with luks.fido2 only with the token plugged in.
                 mount <host>                 Rescue: mount this machine's disks at /mnt
                                              without formatting
                 completion bash              source <(provision completion bash)
@@ -353,6 +354,8 @@ withInputs
                 echo "host:    $h"
                 if [ "$mode" = local ]; then
                   echo "install: this machine, using disko + nixos-install (booted from an installer)"
+                  # disko's wipe goes on when a disk is in use: never the running system's
+                  [ -e /etc/provision-installer ] || problem "this machine is not booted from the installer ISO (nix build .#iso-installer)"
                 else
                   echo "install: nixos-anywhere to $dest$([ "$(field "$h" kexec)" = true ] || echo ', without kexec')"
                 fi
@@ -369,11 +372,23 @@ withInputs
                 echo "wipes:"
                 planned=()
                 if disks=$(nix eval --json "$root#nixosConfigurations.$h.config.disko.devices.disk" \
-                  --apply 'd: builtins.mapAttrs (_: x: x.device) d' 2>/dev/null); then
+                  --apply 'd: builtins.mapAttrs (_: x: x.device) d'); then
                   jq -r 'to_entries[] | "  \(.key)  \(.value)"' <<<"$disks"
                   mapfile -t planned < <(jq -r '.[]' <<<"$disks")
                 else
                   problem "cannot evaluate disko.devices.disk of $h (is there a disko layout role?)"
+                fi
+                fido2=
+                if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.fido2" 2>/dev/null)" = true ]; then
+                  fido2=1
+                  if [ "$mode" = remote ]; then
+                    problem "luks.fido2 needs the token in the machine being installed; use --local"
+                  # disko's own wait takes any HID device (a touchpad) for the token
+                  elif [[ $(systemd-cryptenroll --fido2-device=list 2>/dev/null) == */dev/hidraw* ]]; then
+                    echo "token:   ok (enrolled while formatting; store the recovery key it prints)"
+                  else
+                    problem "no FIDO2 token found; plug it in"
+                  fi
                 fi
               }
 
@@ -465,16 +480,12 @@ withInputs
                 local extra=$tmp/extra
                 host_keys export "$h" "$extra"
 
-                # An encrypted root needs its passphrase while disko formats.
+                # An encrypted root needs its passphrase while disko formats
+                # (with a token, disko enrolls it itself).
                 luks_path=
-                if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.enable" 2>/dev/null)" = true ]; then
-                  if [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.fido2" 2>/dev/null)" = true ]; then
-                    # disko enrolls the token itself while it formats
-                    [ "$mode" = local ] || die "$h: luks.fido2 needs the token in the machine being installed; use commit --local"
-                  else
-                    luks_path=$(nix eval --raw "$root#nixosConfigurations.$h.config.disko-layouts.luks.passwordFile")
-                    read_passphrase "$h" "$tmp/luks.key"
-                  fi
+                if [ -z "$fido2" ] && [ "$(nix eval --json "$root#nixosConfigurations.$h.config.disko-layouts.luks.enable" 2>/dev/null)" = true ]; then
+                  luks_path=$(nix eval --raw "$root#nixosConfigurations.$h.config.disko-layouts.luks.passwordFile")
+                  read_passphrase "$h" "$tmp/luks.key"
                 fi
 
                 if [ "$mode" = remote ]; then
@@ -499,7 +510,12 @@ withInputs
                   info "$h: building the system before touching any disk"
                   system=$(nix build --no-link --print-out-paths "$root#nixosConfigurations.$h.config.system.build.toplevel")
                   info "$h: committing to this machine"
-                  [ -z "$luks_path" ] || $sudo install -m 600 "$tmp/luks.key" "$luks_path"
+                  if [ -n "$luks_path" ]; then
+                    $sudo install -m 600 "$tmp/luks.key" "$luks_path"
+                    # gone however this ends, a failed or interrupted disko too
+                    # shellcheck disable=SC2064
+                    trap "$sudo shred -u $(printf %q "$luks_path") 2>/dev/null || true; cleanup" EXIT
+                  fi
                   $sudo disko --mode destroy,format,mount --yes-wipe-all-disks --flake "$root#$h"
                   [ -z "$luks_path" ] || $sudo shred -u "$luks_path"
                   $sudo mkdir -p /mnt/etc

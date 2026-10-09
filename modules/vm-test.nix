@@ -140,6 +140,8 @@ in
                     provision
                   ];
                   nix.settings.substituters = lib.mkForce [ ];
+                  # what `provision commit --local` looks for, as on the ISO
+                  environment.etc."provision-installer".text = "iso";
                 };
               target = {
                 # LUKS' key derivation takes 1 GiB

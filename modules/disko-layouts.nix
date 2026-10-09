@@ -200,9 +200,9 @@ withInputs
       # Every layout imports this one. It carries the keys that make that safe
       # (`key` deduplicates it, so importing five layouts declares the options
       # once) and everything the layouts share: swap sizing, the facter RAM
-      # lookup and the clash check.
+      # lookup, the clash check and the refusal to switch to another layout.
       flake.modules.nixos.disko-layouts =
-        { config, ... }:
+        { config, pkgs, ... }:
         let
           cfg = config.disko-layouts;
           ram = cfg.ramBytes;
@@ -341,6 +341,21 @@ withInputs
             boot.initrd.services.lvm.enable = lib.mkIf cfg.luks.enable true;
 
             disko-layouts.clashing = lib.any (claims: lib.length claims > 1) (lib.attrValues byMountpoint);
+
+            # A generation for a layout the disk does not have would not boot,
+            # so switch-to-configuration refuses it (also inside nixos-install).
+            system.preSwitchChecks.disko-root = lib.mkIf (lib.any (c: c.mountpoint == "/") cfg.claims) (
+              let
+                root = config.fileSystems."/";
+              in
+              ''
+                if [ ! -e ${lib.escapeShellArg root.device} ] ||
+                  [ "$(${pkgs.util-linux}/bin/findmnt -no FSTYPE /)" != ${lib.escapeShellArg root.fsType} ]; then
+                  echo "disko-layouts: / here is not ${root.fsType} on ${root.device}; a new disk layout needs a reinstall (provision commit)"
+                  exit 1
+                fi
+              ''
+            );
 
             disko-layouts.swap.bytes =
               let
