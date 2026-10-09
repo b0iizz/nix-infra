@@ -69,8 +69,10 @@ withInputs
             {
               # niri until the Hyprland setup is finished
               desktop.sessions.niri.order = 5;
-              # what niri guesses for the 2256x1504 panel; Hyprland and sway guess larger
-              desktop.outputs.eDP-1.scale = 1.5;
+              # 188/120, a logical 1440x960: Hyprland refuses scales that leave
+              # 2256x1504 fractional (1.5 would) and warns at every start.
+              # Unset, Hyprland and sway guess larger.
+              desktop.outputs.eDP-1.scale = 1.566667;
 
               # the printer and the scanner at home (epkowa is unfree)
               services.printing.drivers = with pkgs; [
