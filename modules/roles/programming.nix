@@ -1,13 +1,26 @@
-# A development machine: git, programs built for other distros (nix-ld) and the
-# place the code lives. Editors and toolchains come from per-project shells.
-{ self, ... }:
+# A development machine: git, Claude Code, programs built for other distros
+# (nix-ld) and the place the code lives. Editors and toolchains come from
+# per-project shells. Claude Code is unfree, so the role allows unfree
+# packages (a host can still turn that off).
+{ self, lib, ... }:
 {
-  flake.modules.nixos.programming = {
-    imports = [ self.modules.nixos.persist ];
+  flake.modules.nixos.programming =
+    { pkgs, ... }:
+    {
+      imports = [ self.modules.nixos.persist ];
 
-    programs.git.enable = true;
-    programs.nix-ld.enable = true;
+      nixpkgs.config.allowUnfree = lib.mkDefault true;
 
-    persist.home.directories = [ "Projects" ];
-  };
+      programs.git.enable = true;
+      programs.nix-ld.enable = true;
+      environment.systemPackages = [ pkgs.claude-code ];
+
+      persist.home = {
+        directories = [
+          "Projects"
+          ".claude"
+        ];
+        files = [ ".claude.json" ];
+      };
+    };
 }
