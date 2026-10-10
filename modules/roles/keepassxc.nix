@@ -32,6 +32,7 @@
           (lib.cmakeBool "KPXC_FEATURE_UPDATES" false)
           (lib.cmakeBool "WITH_TESTS" false)
         ];
+        # ponytail: no test run (the 2.7 checkPhase points at Qt 5); enable once 2.8 is stable
         doCheck = false;
         nativeBuildInputs = with pkgs; [
           asciidoctor

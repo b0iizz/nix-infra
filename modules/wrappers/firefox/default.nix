@@ -307,7 +307,7 @@ in
             };
             testLibrewolf = {
               expr = lib.attrNames wrapper.passthru.settings.policies.ExtensionSettings;
-              expected = ids;
+              expected = [ "*" ] ++ ids;
             };
             testNativeHost = {
               expr = map (h: h.pname) wrapper.passthru.settings.nativeMessagingHosts;
@@ -315,9 +315,19 @@ in
             };
           };
         in
-        pkgs.runCommand "check-browser-extensions" { } (
+        pkgs.runCommand "check-browser-extensions" { nativeBuildInputs = [ pkgs.jq ]; } (
           if failed == [ ] then
-            "touch $out"
+            # wrapFirefox merges the policies with `//`: what it built must
+            # still block manual installs and keep uBlock Origin
+            ''
+              policies=${wrapper.passthru.package}/lib/librewolf/distribution/policies.json
+              jq -e '.policies.ExtensionSettings
+                | .["*"].installation_mode == "blocked"
+                  and has("uBlock0@raymondhill.net")
+                  and has("keepassxc-browser@keepassxc.org")' $policies
+              grep -q keepassxc ${wrapper.passthru.package}/bin/librewolf
+              touch $out
+            ''
           else
             "echo ${lib.escapeShellArg (lib.generators.toPretty { } failed)} >&2; exit 1"
         );
@@ -366,19 +376,31 @@ in
   # The wrapper with the host's `browser.*` applied.
   flake.lib.withBrowserExtensions =
     config: browser:
-    browser.extend {
-      passthru.settings = {
-        policies =
+    browser.extend (
+      final:
+      lib.optionalAttrs (config.browser.extensions != { }) {
+        # wrapFirefox merges `settings.policies` over its own policies with
+        # `//`, so this key replaces its ExtensionSettings: with declarative
+        # extensions (LibreWolf) the "block the rest" entry is repeated here.
+        passthru.settings.policies =
           old:
-          lib.recursiveUpdate old {
-            ExtensionSettings = lib.mapAttrs (_: slug: {
-              installation_mode = "force_installed";
-              install_url = "https://addons.mozilla.org/firefox/downloads/latest/${slug}/latest.xpi";
-            }) config.browser.extensions;
+          old
+          // {
+            ExtensionSettings =
+              lib.optionalAttrs (final.passthru.settings.extensions != null) {
+                "*" = {
+                  blocked_install_message = "You can't have manual extension mixed with nix extensions";
+                  installation_mode = "blocked";
+                };
+              }
+              // lib.mapAttrs (_: slug: {
+                installation_mode = "force_installed";
+                install_url = "https://addons.mozilla.org/firefox/downloads/latest/${slug}/latest.xpi";
+              }) config.browser.extensions;
           };
-        nativeMessagingHosts = old: old ++ config.browser.nativeMessagingHosts;
-      };
-    };
+        passthru.settings.nativeMessagingHosts = old: old ++ config.browser.nativeMessagingHosts;
+      }
+    );
 
   # Opt-in per host (`roles = [ "librewolf" ]`), not part of `base`.
   flake.modules.nixos.librewolf =
