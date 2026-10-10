@@ -29,7 +29,12 @@
 # module's /etc/firefox/policies file shadows the wrapper's own policies on
 # Firefox, which `flake.modules.nixos.firefox` takes care of. LibreWolf is
 # installed by `flake.modules.nixos.librewolf`.
-{ self, lib, ... }:
+{
+  self,
+  lib,
+  inputs,
+  ...
+}:
 let
   w = self.lib.wrappers;
 
@@ -40,6 +45,7 @@ let
         policies = _: { };
         extraPrefs = _: "";
         extensions = _: null;
+        nativeMessagingHosts = _: [ ];
       };
       passthru.wrapper.exes = _: [ ];
     }
@@ -64,6 +70,9 @@ let
             extraPrefs = themePrefs + s.extraPrefs;
           }
           // lib.optionalAttrs (s.extensions != null) { nixExtensions = s.extensions; }
+          // lib.optionalAttrs (s.nativeMessagingHosts != [ ]) {
+            nativeMessagingHosts = s.nativeMessagingHosts;
+          }
         );
       in
       {
@@ -260,6 +269,59 @@ in
   perSystem =
     { pkgs, ... }:
     {
+      # the password manager roles reach the policies of both browsers and the
+      # native host of the LibreWolf wrapper
+      checks.browser-extensions =
+        let
+          c =
+            (inputs.nixpkgs.lib.nixosSystem {
+              modules = [
+                {
+                  nixpkgs.hostPlatform = pkgs.stdenv.hostPlatform.system;
+                  fileSystems."/" = {
+                    device = "none";
+                    fsType = "tmpfs";
+                  };
+                  boot.loader.grub.enable = false;
+                  system.stateVersion = "26.05";
+                }
+              ]
+              ++ map (r: self.modules.nixos.${r}) [
+                "bitwarden"
+                "keepassxc"
+                "librewolf"
+                "firefox"
+              ];
+            }).config;
+          wrapper = lib.findFirst (
+            p: (p.passthru.wrapperName or null) == "librewolf"
+          ) null c.environment.systemPackages;
+          ids = lib.attrNames c.programs.firefox.policies.ExtensionSettings;
+          failed = lib.runTests {
+            testFirefox = {
+              expr = ids;
+              expected = [
+                "keepassxc-browser@keepassxc.org"
+                "{446900e4-71c2-419f-a6a7-df9c091e268b}"
+              ];
+            };
+            testLibrewolf = {
+              expr = lib.attrNames wrapper.passthru.settings.policies.ExtensionSettings;
+              expected = ids;
+            };
+            testNativeHost = {
+              expr = map (h: h.pname) wrapper.passthru.settings.nativeMessagingHosts;
+              expected = [ "keepassxc" ];
+            };
+          };
+        in
+        pkgs.runCommand "check-browser-extensions" { } (
+          if failed == [ ] then
+            "touch $out"
+          else
+            "echo ${lib.escapeShellArg (lib.generators.toPretty { } failed)} >&2; exit 1"
+        );
+
       wrappers.librewolf = lib.mkMerge [
         (w.program (program pkgs.librewolf))
         (lib.mkAfter [
@@ -276,11 +338,57 @@ in
       ];
     };
 
+  # What the roles of one host ask of its browsers, so a password manager role
+  # needs no knowledge of which browsers the host has. The `librewolf` and
+  # `firefox` roles apply it to their wrapper:
+  #
+  #   browser.extensions.<id> = "<slug>";   force-installed from addons.mozilla.org
+  #   browser.nativeMessagingHosts = [ pkg ];   programs the extensions talk to
+  #
+  # ponytail: the add-ons are fetched by the browser from AMO, signed, but not
+  # pinned by hash like `settings.extensions`; Firefox refuses those.
+  flake.modules.nixos.browser-extensions = {
+    key = "modules/wrappers/firefox/default.nix#browser-extensions";
+
+    options.browser = {
+      extensions = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = { };
+        example."uBlock0@raymondhill.net" = "ublock-origin";
+      };
+      nativeMessagingHosts = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [ ];
+      };
+    };
+  };
+
+  # The wrapper with the host's `browser.*` applied.
+  flake.lib.withBrowserExtensions =
+    config: browser:
+    browser.extend {
+      passthru.settings = {
+        policies =
+          old:
+          lib.recursiveUpdate old {
+            ExtensionSettings = lib.mapAttrs (_: slug: {
+              installation_mode = "force_installed";
+              install_url = "https://addons.mozilla.org/firefox/downloads/latest/${slug}/latest.xpi";
+            }) config.browser.extensions;
+          };
+        nativeMessagingHosts = old: old ++ config.browser.nativeMessagingHosts;
+      };
+    };
+
   # Opt-in per host (`roles = [ "librewolf" ]`), not part of `base`.
   flake.modules.nixos.librewolf =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     {
-      environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf ];
+      imports = [ self.modules.nixos.browser-extensions ];
+
+      environment.systemPackages = [
+        (self.lib.withBrowserExtensions config self.packages.${pkgs.stdenv.hostPlatform.system}.librewolf)
+      ];
     };
 
   # Firefox reads /etc/firefox/policies/policies.json *instead of* the one next
@@ -295,9 +403,13 @@ in
       ...
     }:
     {
+      imports = [ self.modules.nixos.browser-extensions ];
+
       programs.firefox = {
         enable = true;
-        package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.firefox;
+        package = lib.mkDefault (
+          self.lib.withBrowserExtensions config self.packages.${pkgs.stdenv.hostPlatform.system}.firefox
+        );
         policies = config.programs.firefox.package.passthru.settings.policies or { };
       };
     };
