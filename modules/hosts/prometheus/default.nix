@@ -33,6 +33,7 @@ withInputs
           "alacritty"
           "office"
           "gaming"
+          "keepassxc"
         ];
 
         modules = [
