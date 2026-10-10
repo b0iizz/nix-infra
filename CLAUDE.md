@@ -52,7 +52,7 @@ Which checks: every change gets `nix flake check --no-build` and `treefmt`. Desk
 - Users and admin keys: `modules/users.nix`, policy in `modules/flake-root.nix`. Secrets: `modules/secrets.nix`, ciphertext in `secrets/` (`master/`, `host-keys/`, `generated/`, `rekeyed/<host>/`).
 - Disks: `modules/disk-select.nix` picks them from `facter.json`; `modules/disko-layouts.nix` holds the layouts (roles `disko-root-*`, `disko-raid`, `disko-data`). Root wipe: `modules/lib/impermanence.nix`. What survives it: `persist.*` in `modules/persist.nix`.
 - Tools: `modules/provision.nix`, `modules/deploy.nix` and `modules/host-keys.nix`, on `modules/lib/cli.nix`. At run time they read `nix eval .#<tool>Data` from the checkout.
-- Desktop: the `desktop.*` contract and its tests in `modules/desktop.nix`, QML and its modules in `modules/desktop/`, shell and greeter in `modules/wrappers/quickshell/`. Wrapped programs: read the header of `modules/lib/wrappers.nix` first.
+- Desktop: the `desktop.*` contract in `modules/desktop/options.nix` and its tests in `check.nix`, QML and its modules in `modules/desktop/` (one folder per feature: `bar`, `power`, `auth`, `wallpaper`), shell and greeter in `modules/wrappers/quickshell/`. Wrapped programs: read the header of `modules/lib/wrappers.nix` first.
 
 ## Conventions
 
@@ -78,7 +78,7 @@ Audits and reviews: use the `ponytail-audit` and `ponytail-review` skills. Witho
 ## Pitfalls
 
 - A new file Nix "cannot find": flakes see only git-tracked files. `git add` it first; the tools do that for the files they write.
-- `checks.desktop-roles` runs `test -x` on each `desktop.startup` entry, so an entry must be one executable path. Wrap a command with arguments in `pkgs.writeShellApplication`, like `lock-before-sleep` in `modules/desktop/lock.nix`.
+- `checks.desktop-roles` runs `test -x` on each `desktop.startup` entry, so an entry must be one executable path. Wrap a command with arguments in `pkgs.writeShellApplication`, like `lock-before-sleep` in `modules/desktop/auth/lock.nix`.
 - The same check fails when QML reads a `ShellData.<name>.<key>` that no module sets. `AuthView.qml` and `AuthForm.qml` are shared with the greeter tree byte for byte (`cmp` in the check).
 - `writeShellApplication` puts its `runtimeInputs` first on PATH, so stubs further back never win. Tests use `provision-cli.withRuntimeInputs [ stubs ]` from `modules/lib/cli.nix`, as `modules/vm-test.nix` does for `nix`, `disko`, `ssh`, `ssh-keyscan` and `nixos-anywhere`. `nixos-install --system` calls only `nix-env`, so a stubbed `nix` does not break it.
 - NixOS test scripts are type-checked: an `if` on a constant fails (`redundant-condition`). Generate the line in Nix with `lib.optionalString`, one line per interpolation, minding Python's indentation.

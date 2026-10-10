@@ -16,6 +16,12 @@
       report = (config.host-context or { }).facter.report or null;
       facter = self.lib.facter;
       items = config.desktop.bar.items;
+      # the widgets with a right click menu
+      menus = [
+        "Network"
+        "Wifi"
+        "Bluetooth"
+      ];
     in
     {
       imports = [ self.modules.nixos.desktop ];
@@ -68,31 +74,22 @@
         # the scrolling of Brightness and Volume
         WheelArea.qml = ./WheelArea.qml;
       };
-      desktop.overlays = lib.mkMerge [
-        (lib.mkIf items.Network.enable { NetworkMenu.qml = ./NetworkMenu.qml; })
-        (lib.mkIf items.Wifi.enable { WifiMenu.qml = ./WifiMenu.qml; })
-        (lib.mkIf items.Bluetooth.enable { BluetoothMenu.qml = ./BluetoothMenu.qml; })
-      ];
+      desktop.overlays = lib.mkMerge (
+        map (n: lib.mkIf items.${n}.enable { "${n}Menu".qml = ./${n}Menu.qml; }) menus
+      );
 
       # and the same menus from the launcher, for what has no bar widget to click
-      desktop.launcher.entries =
-        let
-          menu = name: target: {
-            inherit name;
-            exec = [
-              "quickshell"
-              "ipc"
-              "call"
-              target
-              "toggle"
-            ];
-          };
-        in
-        lib.mkMerge [
-          (lib.mkIf items.Network.enable { network-menu = menu "Network" "networkmenu"; })
-          (lib.mkIf items.Wifi.enable { wifi-menu = menu "Wifi" "wifimenu"; })
-          (lib.mkIf items.Bluetooth.enable { bluetooth-menu = menu "Bluetooth" "bluetoothmenu"; })
-        ];
+      desktop.launcher.entries = lib.mkMerge (
+        map (
+          n:
+          lib.mkIf items.${n}.enable {
+            "${lib.toLower n}-menu" = {
+              name = n;
+              exec = self.lib.quickshellIpc "${lib.toLower n}menu" "toggle";
+            };
+          }
+        ) menus
+      );
 
       # what the widgets read from
       hardware.bluetooth.enable = lib.mkIf items.Bluetooth.enable (lib.mkDefault true);

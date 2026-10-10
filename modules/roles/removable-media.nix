@@ -7,7 +7,7 @@
 # With the quickshell role there is also a `Drives` bar item, which shows up
 # while an external drive is connected, and a menu (a click on the item, or
 # "Drives" in the launcher) to mount, unmount and eject them. Both are plain
-# contributions to `desktop.*` (modules/desktop.nix): without the shell they do
+# contributions to `desktop.*` (modules/desktop/options.nix): without the shell they do
 # nothing, and the drives are still mounted by udiskie.
 #
 # External means what the kernel reports as hotplug (USB sticks and disks, SD
@@ -28,20 +28,14 @@
       desktop.bar.items.Drives = {
         position = "right";
         order = 350;
-        qml = ../desktop/Drives.qml;
+        qml = ../desktop/drives/Drives.qml;
       };
-      desktop.overlays.DrivesMenu.qml = ../desktop/DrivesMenu.qml;
-      desktop.components.DriveList.qml = ../desktop/DriveList.qml;
+      desktop.overlays.DrivesMenu.qml = ../desktop/drives/DrivesMenu.qml;
+      desktop.components.DriveList.qml = ../desktop/drives/DriveList.qml;
 
       desktop.launcher.entries.drives-menu = {
         name = "Drives";
-        exec = [
-          "quickshell"
-          "ipc"
-          "call"
-          "drivesmenu"
-          "toggle"
-        ];
+        exec = self.lib.quickshellIpc "drivesmenu" "toggle";
       };
     };
 }

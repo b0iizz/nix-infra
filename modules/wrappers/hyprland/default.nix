@@ -5,7 +5,7 @@
 #   settings.monitors    hl.monitor tables
 #   settings.config      hl.config table (general, input, decoration, ...)
 #   settings.workspaces  hl.workspace_rule tables. The layout is also
-#                        registered as `desktop.workspaces` (desktop.nix).
+#                        registered as `desktop.workspaces` (modules/desktop/options.nix).
 #   settings.binds       [ { keys, action, opts ? { } } ] -> hl.bind. `action`
 #                        is a Lua expression, e.g. `exec [ "foot" ]` below or
 #                        `raw "hl.dsp.window.close()"`.
@@ -236,7 +236,7 @@ in
     };
 
   # Opt-in per host (`roles = [ "hyprland" ]`). Whatever other roles asked for
-  # through `desktop.*` (modules/desktop.nix) is added to the wrapper here, and
+  # through `desktop.*` (modules/desktop/options.nix) is added to the wrapper here, and
   # the workspaces are registered there for a shell, if the host has one.
   #
   # ponytail: the session file (share/wayland-sessions/hyprland.desktop) in the

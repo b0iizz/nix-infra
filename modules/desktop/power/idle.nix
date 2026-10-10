@@ -23,7 +23,7 @@
         };
     in
     {
-      key = "modules/desktop/idle.nix";
+      key = "modules/desktop/power/idle.nix";
 
       imports = [ self.modules.nixos.desktop ];
 

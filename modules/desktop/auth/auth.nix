@@ -9,7 +9,7 @@
   flake.modules.nixos.desktop-auth =
     { config, ... }:
     {
-      key = "modules/desktop/auth.nix";
+      key = "modules/desktop/auth/auth.nix";
 
       imports = with self.modules.nixos; [
         desktop

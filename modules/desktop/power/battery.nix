@@ -22,7 +22,7 @@
         };
     in
     {
-      key = "modules/desktop/battery.nix";
+      key = "modules/desktop/power/battery.nix";
 
       imports = [ self.modules.nixos.desktop ];
 

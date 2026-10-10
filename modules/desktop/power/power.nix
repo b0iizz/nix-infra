@@ -1,6 +1,6 @@
 # Shutdown menu and shutdown launcher entries. Imported by the quickshell role.
 #
-# The actions are `desktop.power.actions` (modules/desktop.nix): shut down,
+# The actions are `desktop.power.actions` (modules/desktop/options.nix): shut down,
 # reboot and suspend are set here, hibernate once there is a resume device
 # (`boot.resumeDevice`, which the disko layouts set for hibernation swap), and
 # log out once there is a session.
@@ -90,13 +90,7 @@
         // {
           power-menu = {
             name = "Power menu";
-            exec = [
-              "quickshell"
-              "ipc"
-              "call"
-              "powermenu"
-              "toggle"
-            ];
+            exec = self.lib.quickshellIpc "powermenu" "toggle";
           };
         };
 

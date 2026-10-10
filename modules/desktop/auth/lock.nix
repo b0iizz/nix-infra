@@ -33,13 +33,7 @@
 
       desktop.overlays.LockScreen.qml = ./LockScreen.qml;
 
-      desktop.lock.command = lib.mkDefault [
-        "quickshell"
-        "ipc"
-        "call"
-        "lock"
-        "lock"
-      ];
+      desktop.lock.command = lib.mkDefault (self.lib.quickshellIpc "lock" "lock");
 
       desktop.startup = [ (lib.getExe lockBeforeSleep) ];
 

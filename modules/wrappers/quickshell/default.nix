@@ -16,7 +16,7 @@
 #   settings.data             <name> -> JSON-able value, read as `ShellData.<name>`
 #
 # On a host the quickshell role fills these from `desktop.*`
-# (modules/desktop.nix); the bare wrapper has an empty bar.
+# (modules/desktop/options.nix); the bare wrapper has an empty bar.
 #
 #   Theme.qml       singleton: colors (base00..), fonts, sizes, opacities of
 #                   `passthru.theme`, e.g. `Theme.base0D`, `Theme.fontMonospace`,
@@ -217,16 +217,15 @@ in
     };
 
   # Opt-in per host (`roles = [ "quickshell" ]`). Takes what the host's roles
-  # registered in `desktop.*` (modules/desktop.nix); Hyprland (or whatever
+  # registered in `desktop.*` (modules/desktop/options.nix); Hyprland (or whatever
   # compositor) picks the start command and the launcher key up from there.
   #
-  # Comes with what every desktop needs: the shutdown menu (desktop/power.nix),
-  # the lock screen (desktop/lock.nix), the polkit agent (desktop/polkit.nix),
-  # the notification daemon (desktop/notifications.nix), the idle daemon
-  # (desktop/idle.nix), the low battery warnings (desktop/battery.nix), the
-  # status widgets (desktop/widgets.nix), the wallpaper daemon and picker (desktop/wallpaper.nix) and the session
-  # basics (desktop/session.nix) and the look of GTK and Qt programs
-  # (desktop/theme.nix).
+  # Comes with what every desktop needs, from modules/desktop/: the shutdown
+  # menu, idle daemon and low battery warnings (power/), the lock screen and
+  # polkit agent (auth/), the status widgets (bar/), the wallpaper daemon and
+  # picker (wallpaper/), the notification daemon (notifications.nix), the
+  # session basics (session.nix) and the look of GTK and Qt programs
+  # (theme.nix).
   flake.modules.nixos.quickshell =
     { config, pkgs, ... }:
     let

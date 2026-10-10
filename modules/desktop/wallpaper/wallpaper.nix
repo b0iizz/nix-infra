@@ -133,7 +133,7 @@
       };
     in
     {
-      key = "modules/desktop/wallpaper.nix";
+      key = "modules/desktop/wallpaper/wallpaper.nix";
 
       imports = with self.modules.nixos; [
         desktop
@@ -237,13 +237,7 @@
 
         desktop.launcher.entries.wallpaper = {
           name = "Wallpaper";
-          exec = [
-            "quickshell"
-            "ipc"
-            "call"
-            "wallpaper"
-            "toggle"
-          ];
+          exec = self.lib.quickshellIpc "wallpaper" "toggle";
         };
       };
     };

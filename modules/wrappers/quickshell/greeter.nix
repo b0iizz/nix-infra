@@ -8,7 +8,7 @@
 #   settings.fingerprint  mention the reader in the hint
 #   settings.wallpaper    `{ saved, default }`: behind the form the chosen
 #                         user's current image, `<saved>/<user>`, or `default`
-#                         (modules/desktop/wallpaper.nix); null for none
+#                         (modules/desktop/wallpaper/wallpaper.nix); null for none
 #
 # The role `greeter` fills these from the host: its normal users and
 # `desktop.sessions`, which the compositor roles fill. As each is the wrapped
@@ -16,7 +16,7 @@
 # session file involved.
 #
 # The screen is the lock screen's: AuthView and AuthForm are the same files
-# (modules/desktop/), copied into this tree.
+# (modules/desktop/auth/), copied into this tree.
 { self, lib, ... }:
 let
   w = self.lib.wrappers;
@@ -72,8 +72,8 @@ let
               ]
             );
           "Greeter.qml" = _: ./Greeter.qml;
-          "AuthForm.qml" = _: ../../desktop/AuthForm.qml;
-          "AuthView.qml" = _: ../../desktop/AuthView.qml;
+          "AuthForm.qml" = _: ../../desktop/auth/AuthForm.qml;
+          "AuthView.qml" = _: ../../desktop/auth/AuthView.qml;
         };
 
         passthru.wrapper.flags.__append = [ "--path ${final.passthru.config.dir}" ];
@@ -118,7 +118,7 @@ in
       # greetd's stack is `auth substack login`, with the reader first. Swap
       # the substack for one of our own that has the password first, so that
       # the password prompt is there at once (the reason is in
-      # modules/desktop/polkit.nix). `login`, the console's, stays as it is.
+      # modules/desktop/auth/polkit.nix). `login`, the console's, stays as it is.
       security.pam.services.quickshell-greeter-auth.rules.auth.fprintd.order =
         config.security.pam.services.quickshell-greeter-auth.rules.auth.unix.order + 10;
       security.pam.services.greetd.rules.auth.login.modulePath = lib.mkForce "quickshell-greeter-auth";

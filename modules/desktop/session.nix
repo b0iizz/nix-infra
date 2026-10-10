@@ -1,6 +1,6 @@
 # What every desktop session needs, whichever compositor and shell it has.
 # Imported by the quickshell role. Everything is `mkDefault`, hosts override.
-# How GTK and Qt programs look is modules/desktop/theme.nix.
+# How GTK and Qt programs look is theme.nix.
 { self, lib, ... }:
 {
   flake.modules.nixos.desktop-session =
