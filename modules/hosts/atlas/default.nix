@@ -83,6 +83,11 @@
           doctitle = "nas.grebes.net";
         };
 
+        # newest vanilla at mc.greb.es, port 25565; more servers (modded too)
+        # go next to it, see modules/roles/minecraft-server.nix
+        services.minecraft-servers.servers.vanilla.enable = true;
+        publicProxy.expose.minecraft-vanilla.subdomain = "mc";
+
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
         # for what does not fit, zram in front of it for speed
         disko-layouts.swap.size = "24GiB";
