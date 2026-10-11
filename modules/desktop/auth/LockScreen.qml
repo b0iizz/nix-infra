@@ -20,6 +20,12 @@ Scope {
     readonly property string user: Quickshell.env("USER") ?? ""
     property bool failed: false
     property int fingerprintRetries: 0
+    property double fingerStarted: 0
+
+    function startFinger() {
+        fingerStarted = Date.now();
+        finger.start();
+    }
 
     function unlockOn(result) {
         if (result === PamResult.Success)
@@ -42,7 +48,7 @@ Scope {
             root.fingerprintRetries = 0;
             password.start();
             if (root.fingerprint)
-                finger.start();
+                root.startFinger();
         }
     }
 
@@ -73,8 +79,11 @@ Scope {
 
         config: "quickshell-lock-fingerprint"
         onCompleted: result => {
-            // a reader that is missing or has no prints ends at once, so the
-            // retries are limited
+            // A reader that is missing or has no prints ends at once, so those
+            // retries are limited. A timeout (30 s) is not one: the screen may
+            // stay locked for hours.
+            if (Date.now() - root.fingerStarted > 5000)
+                root.fingerprintRetries = 0;
             if (!root.unlockOn(result) && root.fingerprintRetries++ < root.maxFingerprintRetries)
                 retry.start();
         }
@@ -85,7 +94,7 @@ Scope {
 
         interval: 1500
         onTriggered: if (sessionLock.locked)
-            finger.start()
+            root.startFinger()
     }
 
     WlSessionLock {
