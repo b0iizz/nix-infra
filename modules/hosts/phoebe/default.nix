@@ -3,8 +3,8 @@
 #
 # - Hub of the `edge` WireGuard network (hub and spoke): origins such as atlas
 #   dial wg.greb.es and need no open port. Spokes see only the hub.
-# - Terminates TLS (Cloudflare origin certificates; the
-#   services' records go through Cloudflare's proxy, SSL mode Full (strict)) and reverse
+# - Terminates TLS (Let's Encrypt, DNS-01 through Cloudflare;
+#   the records are DNS only, not proxied) and reverse
 #   proxies what origins `publicProxy.expose`, e.g. nas.grebes.net for
 #   copyparty on atlas.
 # - Keeps the Cloudflare records of all this up to date.
@@ -12,7 +12,7 @@
 # The publicProxy settings are for the whole flake; see
 # modules/public-proxy/module.nix. Secrets (agenix edit, then agenix rekey -a):
 #   secrets/public-proxy/cloudflare-dns-token.age   record sync
-#   secrets/public-proxy/cloudflare-origin-token.age  origin certificates
+#   secrets/public-proxy/cloudflare-acme-token.age  DNS-01 challenge
 # plus `agenix generate` for the WireGuard keys of phoebe and atlas.
 #
 # Disks: root on ext4 with swap, no LUKS (a VPS has to boot unattended).
@@ -34,7 +34,7 @@ in
     };
     origins = [ "atlas" ];
 
-    tls.mode = "cloudflare-origin";
+    tls.acme.challenge = "dns";
     dns.enable = true;
   };
 
