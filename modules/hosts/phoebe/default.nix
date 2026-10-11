@@ -56,7 +56,7 @@ in
   wireguard.networks.hub = {
     topology = "hub-and-spoke";
     hub = "phoebe";
-    ipv4 = "10.78.0.0/24";
+    ipv4 = "10.10.0.0/24";
     port = 51821;
     members = {
       phoebe.endpoint = hubEndpoint;
