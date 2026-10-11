@@ -35,6 +35,10 @@
       flake = false;
     };
     make-shell.url = "github:nicknovitski/make-shell";
+    nix-minecraft = {
+      url = "github:Infinidoge/nix-minecraft";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nixos-anywhere = {
       url = "github:nix-community/nixos-anywhere";
       inputs = {

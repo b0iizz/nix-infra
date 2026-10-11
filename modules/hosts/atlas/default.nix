@@ -1,5 +1,6 @@
 # Home server (ASUS PRIME N100I-D D4, Intel N100): NAS, web pages, Minecraft
-# servers, Jellyfin and the like. The services are not written yet.
+# servers, Jellyfin and the like. Running: copyparty, and a vanilla Minecraft
+# server at mc.greb.es (role `minecraft-server`).
 #
 # Atlas is the Titan who carries the sky on his shoulders, Prometheus's
 # brother: this machine carries the weight of everything else.
@@ -17,6 +18,7 @@
       "disko-root-impermanence"
       "disko-raid"
       "copyparty"
+      "minecraft-server"
     ];
     # deployed through the hub (modules/hosts/phoebe), from anywhere; the LAN
     # address below for a reinstall by kexec, or `deploy --target` when the
