@@ -6,7 +6,7 @@
 #
 # Disks: root on the SSD with the wiped-every-boot root, no LUKS (it has to
 # boot without anyone there), 24 GiB swap; the two 4 TB IronWolfs as a
-# RAID 1 at /data.
+# RAID 1 at /data. Static address 192.168.178.10.
 { ... }:
 {
   registry.hosts.atlas = {
@@ -28,6 +28,18 @@
         # for what does not fit, zram in front of it for speed
         disko-layouts.swap.size = "24GiB";
         zramSwap.enable = true;
+
+        # 192.168.178.10, below the Fritz!Box DHCP range (from .20); matched by
+        # the MAC so the interface name does not matter
+        networking.useDHCP = false;
+        networking.useNetworkd = true;
+        networking.nameservers = [ "192.168.178.1" ];
+        systemd.network.enable = true;
+        systemd.network.networks."10-lan" = {
+          matchConfig.MACAddress = "a0:ad:9f:14:18:b7";
+          address = [ "192.168.178.10/24" ];
+          gateway = [ "192.168.178.1" ];
+        };
       }
     ];
   };
