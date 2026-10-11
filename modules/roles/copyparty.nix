@@ -27,6 +27,10 @@
 # zone and a gateway (see modules/public-proxy/module.nix). The address is
 # `files.<defaultZone>`; change it with `publicProxy.expose.copyparty`.
 #
+# The look is copyparty's flat light theme, restyled by the stylesheet in
+# copyparty-head.html (appended to every page). The name in the page titles
+# is the host's: `services.copyparty.settings.bname` and `doctitle`.
+#
 # The NixOS module comes from the copyparty flake (nixpkgs has none), the
 # package from nixpkgs.
 { withInputs, ... }:
@@ -141,6 +145,12 @@ withInputs
                 # the module's defaults, which setting `settings` drops
                 no-reload = true;
                 hist = "/var/cache/copyparty";
+                # the look: flat light, restyled by copyparty-head.html; a
+                # visitor's own theme pick (in their browser) still wins
+                theme = 3;
+                html-head = "@${./copyparty-head.html}";
+                favico = "▤ fff 2563eb";
+                spinner = "◌";
               };
               accounts = lib.genAttrs cfg.accounts (name: {
                 passwordFile = config.age.secrets.${secretOf name}.path;

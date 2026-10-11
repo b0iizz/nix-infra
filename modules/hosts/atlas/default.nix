@@ -68,6 +68,11 @@
           # per request; bounds what a stolen login can fill in one go
           maxBodySize = "50G";
         };
+        # in the page titles instead of the host name
+        services.copyparty.settings = {
+          bname = "nas.grebes.net";
+          doctitle = "nas.grebes.net";
+        };
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
         # for what does not fit, zram in front of it for speed

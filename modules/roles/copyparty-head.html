@@ -1,0 +1,161 @@
+<!--
+  Appended to the <head> of every copyparty page (`html-head` in
+  copyparty.nix): a sober restyle of the flat themes, `html.b.y` light (the
+  default, theme 3) and `html.b.z` dark (theme 2). The other themes stay as
+  they ship. Mostly copyparty's own colour variables, see its browser.css.
+-->
+<style>
+  html.b {
+    --font-main: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    --radius: 0.4em;
+  }
+  html.b.y {
+    --fg: #1f2937;
+    --fg-max: #111827;
+    --fg-weak: #6b7280;
+    --bg: #f6f7f9;
+    --bg-u1: #fff;
+    --bg-u2: #fff;
+    --bg-u3: #f1f3f5;
+    --bg-u4: #fff;
+    --bg-u5: #d6dae0;
+    --bg-u6: #e5e7eb;
+    --row-alt: #fafbfc;
+    --tab-alt: #6b7280;
+    --a: #1d4ed8;
+    --a-b: #2563eb;
+    --a-hil: #1e40af;
+    --a-gray: #9ca3af;
+    --btn-fg: #374151;
+    --btn-bg: #fff;
+    --btn-h-fg: #111827;
+    --btn-h-bg: #eef2ff;
+    --btn-1-fg: #fff;
+    --btn-1-bg: #2563eb;
+    --btn-1h-bg: #1d4ed8;
+    --sort-1: #1d4ed8;
+    --sort-2: #6b7280;
+    --srv-1: #6b7280;
+    --srv-2: #6b7280;
+    --srv-3: #6b7280;
+    --scroll: #9ca3af;
+  }
+  html.b.z {
+    --fg: #d4d7dd;
+    --fg-max: #f3f4f6;
+    --fg-weak: #9aa1ac;
+    --bg-d3: #2a2e36;
+    --bg-d2: #2a2e36;
+    --bg-d1: #1f2229;
+    --bg: #15171c;
+    --bg-u1: #1b1e24;
+    --bg-u2: #1b1e24;
+    --bg-u3: #1b1e24;
+    --bg-u4: #1f2229;
+    --bg-u5: #343944;
+    --bg-u6: #2a2e36;
+    --row-alt: #191b21;
+    --tab-alt: #9aa1ac;
+    --a: #7aa7ff;
+    --a-b: #93b8ff;
+    --a-hil: #5b8def;
+    --a-gray: #4b5260;
+    --btn-bg: #1f2229;
+    --btn-h-bg: #2a2e36;
+    --btn-1-fg: #fff;
+    --btn-1-bg: #3b6fe0;
+    --btn-1h-fg: #fff;
+    --btn-1h-bg: #5b8def;
+    --sort-1: #7aa7ff;
+    --sort-2: #9aa1ac;
+    --srv-1: #9aa1ac;
+    --srv-2: #9aa1ac;
+    --srv-3: #9aa1ac;
+    --scroll: #4b5260;
+    --g-sel-bg: #3b6fe0;
+    --g-fsel-bg: #5b8def;
+  }
+  html.b body,
+  html.b #files,
+  html.b #tree,
+  html.b #ops,
+  html.b .btn {
+    font-family: var(--font-main);
+  }
+  html.b #files td:nth-child(3),
+  html.b #files td:nth-child(5) {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  html.b #files {
+    width: 100%;
+  }
+  html.b #files thead th {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--fg-weak);
+    text-align: left;
+    padding: 0.5em 0.8em;
+  }
+  html.b #files thead th:first-child {
+    text-align: center;
+  }
+  html.b #files thead th:nth-child(3) {
+    text-align: right;
+  }
+  html.b #files td,
+  html.b #files tr:nth-child(2n + 1) td + td {
+    box-shadow: none;
+    border-radius: 0;
+    border-bottom: 1px solid var(--bg-u6);
+    padding: 0.5em 0.8em;
+  }
+  html.b #files tbody tr:hover td {
+    background: var(--bg-u3);
+  }
+  /* the emoji buttons, as quiet monochrome icons */
+  html.b #ops,
+  html.b #treeh,
+  html.b #wtoggle {
+    filter: grayscale(1);
+    opacity: 0.8;
+  }
+  html.b #wfp {
+    font-size: 1em;
+    font-weight: 500;
+  }
+  /* the control panel and login (splash.css), hard-coded colours there */
+  html.b#ht_spl {
+    color: var(--fg);
+    background: var(--bg);
+  }
+  html.b#ht_spl h1 {
+    font-size: 1.3em;
+    font-weight: 600;
+    border-color: var(--bg-u5);
+  }
+  html.b#ht_spl #wrap a,
+  html.b#ht_spl input {
+    color: var(--a);
+    background: var(--bg-u1);
+    border: 1px solid var(--bg-u5);
+    border-radius: var(--radius);
+  }
+  html.b#ht_spl input {
+    color: var(--fg);
+  }
+  html.b#ht_spl input::placeholder {
+    color: var(--fg-weak);
+    font-size: 1em;
+    font-style: normal;
+  }
+  html.b#ht_spl #wrap a:hover,
+  html.b#ht_spl input:focus {
+    border-color: var(--a);
+  }
+  html.b .btn,
+  html.b #tree li a {
+    border-radius: var(--radius);
+  }
+</style>
