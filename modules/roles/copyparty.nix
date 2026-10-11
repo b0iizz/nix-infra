@@ -23,9 +23,9 @@
 # `copyparty --help-flags`, or the options of `services.copyparty.volumes`.
 # Messages to the server log (the 📟 box) are off for everyone.
 #
-# Each account's password is generated with agenix-rekey (`agenix generate`,
-# then `agenix rekey -a`); read it with `agenix edit` on
-# `copyparty-<host>-<account>`.
+# Each account's password (16 characters with symbols) is generated with
+# agenix-rekey (`agenix generate`, then `agenix rekey -a`); an existing one
+# is kept. Read it with `agenix edit` on `copyparty-<host>-<account>`.
 #
 # The host also has to be in `publicProxy.origins`, and the flake needs a
 # zone and a gateway (see modules/public-proxy/module.nix). The address is
@@ -212,8 +212,10 @@ withInputs
 
             age.secrets = lib.genAttrs (map secretOf cfg.accounts) (_: {
               owner = svc.user;
+              # 16 characters, at least one a symbol; copyparty takes any
+              # printable ASCII in a password
               generator = {
-                script = "alnum";
+                script = { pkgs, ... }: "${pkgs.pwgen}/bin/pwgen -s -y 16 1";
                 tags = [ "password" ];
               };
             });

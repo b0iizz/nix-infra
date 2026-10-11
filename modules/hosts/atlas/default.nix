@@ -30,13 +30,20 @@
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
 
-        # /data/share at https://nas.grebes.net: the top is for admin only,
-        # `public` is read by everyone and edited by family, `private` is
-        # for family and admin alone (guests see nothing)
+        # /data/share at https://nas.grebes.net, login with name and
+        # password: the top is for admin only, `public` is read by everyone
+        # and edited by admin and the family, `video`, `music` and `images`
+        # are the family's alone (guests see nothing)
         copyparty.accounts = [
           "admin"
-          "family"
+          "joni"
+          "anni"
         ];
+        copyparty.groups.family = [
+          "joni"
+          "anni"
+        ];
+        copyparty.usernames = true;
         copyparty.volumes = {
           "/" = {
             path = "/data/share";
@@ -48,18 +55,15 @@
               r = "*";
               rwmd = [
                 "admin"
-                "family"
+                "@family"
               ];
             };
           };
-          "/private" = {
-            path = "/data/share/private";
-            access.rwmd = [
-              "admin"
-              "family"
-            ];
-          };
-        };
+        }
+        // lib.genAttrs [ "/video" "/music" "/images" ] (url: {
+          path = "/data/share${url}";
+          access.rwmd = [ "@family" ];
+        });
 
         # through the gateway phoebe
         publicProxy.expose.copyparty = {
