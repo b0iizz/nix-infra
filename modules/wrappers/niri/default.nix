@@ -122,7 +122,8 @@ let
           _:
           {
             "Mod+T" = spawn (lib.getExe packages.alacritty);
-            "Mod+D" = spawn (lib.getExe packages.librewolf);
+            # by name: the librewolf role installs the host's build, with its extensions
+            "Mod+D" = spawn "librewolf";
             "Mod+Q" = "close-window";
             "Mod+Shift+E" = "quit";
             "Ctrl+Alt+Delete" = "quit";

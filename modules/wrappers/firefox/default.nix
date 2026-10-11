@@ -267,10 +267,11 @@ let
 in
 {
   perSystem =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     {
       # the password manager roles reach the policies of both browsers and the
-      # native host of the LibreWolf wrapper
+      # native host of the LibreWolf wrapper, and the compositors start that
+      # wrapper, not the plain package
       checks.browser-extensions =
         let
           c =
@@ -291,6 +292,9 @@ in
                 "keepassxc"
                 "librewolf"
                 "firefox"
+                "niri"
+                "hyprland"
+                "sway"
               ];
             }).config;
           wrapper = lib.findFirst (
@@ -326,6 +330,12 @@ in
                   and has("uBlock0@raymondhill.net")
                   and has("keepassxc-browser@keepassxc.org")' $policies
               grep -q keepassxc ${wrapper.passthru.package}/bin/librewolf
+              for f in ${c.programs.niri.package.passthru.config.file."config.kdl"} \
+                ${c.programs.hyprland.package.passthru.config.file."hyprland.lua"} \
+                ${c.programs.sway.package.passthru.config.file."config"}; do
+                grep -q librewolf $f
+                if grep -q ${config.packages.librewolf} $f; then echo "$f starts the plain librewolf" >&2; exit 1; fi
+              done
               touch $out
             ''
           else

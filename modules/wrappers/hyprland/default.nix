@@ -147,7 +147,8 @@ let
             }
             {
               keys = key "D";
-              action = exec (lib.getExe packages.librewolf);
+              # by name: the librewolf role installs the host's build, with its extensions
+              action = exec "librewolf";
             }
             {
               keys = key "Q";

@@ -86,7 +86,8 @@ let
           _:
           {
             "Mod4+t" = "exec ${lib.getExe packages.alacritty}";
-            "Mod4+d" = "exec ${lib.getExe packages.librewolf}";
+            # by name: the librewolf role installs the host's build, with its extensions
+            "Mod4+d" = "exec librewolf";
             "Mod4+q" = "kill";
             "Mod4+Shift+e" = "exit";
             "Mod4+f" = "fullscreen";
