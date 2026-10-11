@@ -69,6 +69,27 @@
         "type": "github"
       }
     },
+    "copyparty": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791505570,
+        "narHash": "sha256-2yRQ87dNTVr1kauBR6PTlfw7hnm90MAL0ObpA05xOTU=",
+        "owner": "9001",
+        "repo": "copyparty",
+        "rev": "0dc1cb329120743ca85599ba3fba24849f137677",
+        "type": "github"
+      },
+      "original": {
+        "owner": "9001",
+        "repo": "copyparty",
+        "type": "github"
+      }
+    },
     "devshell": {
       "inputs": {
         "nixpkgs": [
@@ -218,6 +239,21 @@
       }
     },
     "flake-utils": {
+      "locked": {
+        "lastModified": 1678901627,
+        "narHash": "sha256-U02riOqrKKzwjsxc/400XnElV+UtPUQWpANPlyazjH0=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "93a2b84fc4b70d9e089d029deacc3583435c2ed6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "flake-utils_2": {
       "inputs": {
         "systems": [
           "nixos-facter",
@@ -391,7 +427,7 @@
       "inputs": {
         "blueprint": "blueprint",
         "disko": "disko_2",
-        "flake-utils": "flake-utils",
+        "flake-utils": "flake-utils_2",
         "hwinfo": "hwinfo",
         "nixpkgs": [
           "nixpkgs"
@@ -585,6 +621,7 @@
       "inputs": {
         "agenix": "agenix",
         "agenix-rekey": "agenix-rekey",
+        "copyparty": "copyparty",
         "disko": "disko",
         "flake-file": "flake-file",
         "flake-parts": "flake-parts_2",
