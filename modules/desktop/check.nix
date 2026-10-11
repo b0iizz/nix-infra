@@ -72,6 +72,10 @@
         "quickshell"
         "removable-media"
       ];
+      scaledGreeter = hostWith { desktop.outputs.eDP-1.scale = 1.5; } [
+        "niri"
+        "greeter"
+      ];
       noReader = hostWith { desktop.fingerprint = false; } [
         "hyprland"
         "quickshell"
@@ -604,6 +608,12 @@
             grep -q 'start-hyprland.*niri-session' $g2tree/GreeterData.qml
             # the session of the niri wrapper finds its config
             grep -q 'NIRI_CONFIG' ${lib.getExe' twoCompositors.programs.niri.package "niri-session"}
+
+            # the login screen has the session's scale, then starts the greeter
+            set -- ${scaledGreeter.services.greetd.settings.default_session.command}
+            grep -qx 'wlr-randr --output eDP-1 --scale 1.5 || true' $5
+            grep -qx 'exec "$@"' $5
+            test -x "$6"
 
             # the lock screen and the login screen are the same files
             cmp $tree/AuthView.qml $gtree/AuthView.qml

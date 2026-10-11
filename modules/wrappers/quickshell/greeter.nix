@@ -16,6 +16,9 @@
 # compositor's own start command, logging in starts it with its config, no
 # session file involved.
 #
+# cage takes no scale, so the role sets `desktop.outputs` through wlr-randr
+# before the greeter starts, for the same size as in the session.
+#
 # The screen is the lock screen's: AuthView and AuthForm are the same files
 # (modules/desktop/auth/), copied into this tree.
 { self, lib, ... }:
@@ -112,6 +115,21 @@ in
           wallpaper = _: { inherit (config.desktop.data.wallpaper) saved default; };
         };
       };
+      # ponytail: set once at start, a screen plugged in at the login screen keeps cage's guess
+      scale = pkgs.writeShellApplication {
+        name = "greeter-scale";
+        runtimeInputs = [ pkgs.wlr-randr ];
+        # `|| true`: a configured screen may be unplugged, the greeter must start anyway
+        text = ''
+          ${
+            lib.concatStrings (
+              lib.mapAttrsToList (
+                n: o: "wlr-randr --output ${lib.escapeShellArg n} --scale ${builtins.toJSON o.scale} || true\n"
+              ) config.desktop.outputs
+            )
+          }exec "$@"
+        '';
+      };
     in
     {
       imports = with self.modules.nixos; [
@@ -145,7 +163,9 @@ in
         settings.default_session = {
           user = "greeter";
           # -d: no title bar; cage asks clients to draw their own otherwise
-          command = "${lib.getExe cage} -d -s -- ${lib.getExe greeter}";
+          command = "${lib.getExe cage} -d -s -- ${
+            lib.optionalString (config.desktop.outputs != { }) "${lib.getExe scale} "
+          }${lib.getExe greeter}";
         };
       };
     };
