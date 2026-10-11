@@ -1,5 +1,6 @@
-# Steam, with the firewall ports its features need. Steam is unfree, so the
-# role allows unfree packages (a host can still turn that off).
+# Steam, with the firewall ports its features need, and Prism Launcher for
+# Minecraft (modules/wrappers/prismlauncher). Steam is unfree, so the role
+# allows unfree packages (a host can still turn that off).
 { self, lib, ... }:
 {
   flake.modules.nixos.gaming =
@@ -18,6 +19,8 @@
           extraArgs = (prev.extraArgs or "") + " -system-composer";
         });
       };
+
+      environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.prismlauncher ];
 
       persist.home.directories = [
         ".steam"
