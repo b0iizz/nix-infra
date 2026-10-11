@@ -277,7 +277,7 @@ let
                   domain = mkOption {
                     type = types.nullOr types.str;
                     default = null;
-                    description = "Name the SRV record is placed under; `null` means the zone of the primary domain.";
+                    description = "Name the SRV record is placed under; `null` means the primary domain, the name clients look it up for.";
                   };
                   priority = mkOption {
                     type = types.ints.unsigned;
@@ -523,7 +523,7 @@ let
           ) r.gateways
         ) r.domains;
         srv = r.service.dns.srv;
-        srvDomain = if srv.domain != null then srv.domain else zoneOf (head r.domains);
+        srvDomain = if srv.domain != null then srv.domain else head r.domains;
         srvRecord = {
           name = "_${srv.service}._${r.protocol}.${srvDomain}";
           zone = zoneOf srvDomain;

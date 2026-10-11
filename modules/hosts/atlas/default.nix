@@ -1,5 +1,6 @@
 # Home server (ASUS PRIME N100I-D D4, Intel N100): NAS, web pages, Minecraft
-# servers, Jellyfin and the like. The services are not written yet.
+# servers, Jellyfin and the like. Running: copyparty, and a vanilla Minecraft
+# server at mc.greb.es (role `minecraft-server`).
 #
 # Atlas is the Titan who carries the sky on his shoulders, Prometheus's
 # brother: this machine carries the weight of everything else.
@@ -17,6 +18,7 @@
       "disko-root-impermanence"
       "disko-raid"
       "copyparty"
+      "minecraft-server"
     ];
     # deployed through the hub (modules/hosts/phoebe), from anywhere; the LAN
     # address below for a reinstall by kexec, or `deploy --target` when the
@@ -94,6 +96,11 @@
           bname = "nas.grebes.net";
           doctitle = "nas.grebes.net";
         };
+
+        # newest vanilla at mc.greb.es, port 25565; more servers (modded too)
+        # go next to it, see modules/roles/minecraft-server.nix
+        services.minecraft-servers.servers.vanilla.enable = true;
+        publicProxy.expose.minecraft-vanilla.subdomain = "mc";
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
         # for what does not fit, zram in front of it for speed
