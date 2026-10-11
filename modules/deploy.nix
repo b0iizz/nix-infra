@@ -88,7 +88,7 @@ in
           Commands:
             list                  Hosts, targets and groups
             build                 Build only, here; no target is contacted
-            plan                  Build, then show what would change
+            plan                  Build, copy to the target, show what would change
             switch                Build, activate now, make it the boot default
             boot                  Make it the boot default, do not activate
             test                  Activate now, leave the bootloader alone
@@ -256,27 +256,28 @@ in
             nixos-rebuild "$action" "''${flags[@]}" "''${rest[@]}"
           }
 
-          # Build, then diff against what the machine runs now.
+          # Build, then diff against what the machine runs now. The diff runs on
+          # the target: nothing is copied from a target into this store, where a
+          # broken-into target could plant paths that later deploys reuse.
           plan_one() {
-            local h=$1 new cur
+            local h=$1 new cur on=()
             resolve_target "$h"
             info "$h: building"
             new=$(nix build --no-link --print-out-paths \
               "$root#nixosConfigurations.$h.config.system.build.toplevel" "''${rest[@]}")
-            if [ -z "$dest" ]; then
-              cur=/run/current-system
-            else
+            if [ -n "$dest" ]; then
               ssh_setup "$h" "$dest" "$root$(field "$h" pub)"
-              cur=$(ssh "''${sshopts[@]}" "$dest" readlink -f /run/current-system) ||
-                die "$h: cannot read the running system over ssh"
-              nix copy --no-check-sigs --from "ssh://$dest" "$cur" 2>/dev/null ||
-                die "$h: cannot fetch the running system to diff against"
+              on=(ssh "''${sshopts[@]}" "$dest")
             fi
-            if [ "$(readlink -f "$cur")" = "$new" ]; then
+            cur=$("''${on[@]}" readlink -f /run/current-system) ||
+              die "$h: cannot read the running system"
+            if [ "$cur" = "$new" ]; then
               info "$h: up to date"
-            else
-              nix store diff-closures "$cur" "$new"
+              return
             fi
+            [ -z "$dest" ] || nix copy --to "ssh://$dest" "$new" ||
+              die "$h: cannot copy the new system to diff against"
+            "''${on[@]}" nix store diff-closures "$cur" "$new"
           }
 
           # -- run ---------------------------------------------------------

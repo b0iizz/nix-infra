@@ -49,6 +49,8 @@ let
       tmp=
       cleanup() {
         if [ -n "$tmp" ]; then
+          # an ssh master (ssh_setup) is a logged-in session for whoever reaches its socket
+          find "$tmp" -type s -exec ssh -o ControlPath={} -O exit _ \; 2>/dev/null || true
           find "$tmp" -type f -exec shred -u {} + 2>/dev/null || true
           rm -rf "$tmp"
         fi
@@ -61,12 +63,16 @@ let
       # key, from a known_hosts file generated from it; without one it falls
       # back to accept-new. A known_hosts line is `<host> <type> <key>`: the
       # file's trailing comment must go, ssh would read it as a marker.
+      # All ssh calls to a host share one connection, so a FIDO2 key is touched
+      # once per run (nixos-rebuild puts its own ControlPath after NIX_SSHOPTS,
+      # the first one wins); cleanup closes it.
       sshopts=()
       ssh_setup() {
         local h=$1 pubfile=''${3:-} kh type key
         mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
+        mk_tmp
+        sshopts+=(-o ControlMaster=auto -o "ControlPath=$tmp/%C" -o ControlPersist=60)
         if [ -n "$pubfile" ] && [ -f "$pubfile" ]; then
-          mk_tmp
           kh=$tmp/$h.known_hosts
           read -r type key _ <"$pubfile"
           # HostKeyAlias: the line matches whatever address, port or ssh

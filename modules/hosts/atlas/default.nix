@@ -8,7 +8,7 @@
 # boot without anyone there), 24 GiB swap; the two 4 TB IronWolfs as a
 # RAID 1 at /data, served by copyparty at nas.grebes.net through the gateway
 # phoebe. Static address 192.168.178.10.
-{ ... }:
+{ config, lib, ... }:
 {
   registry.hosts.atlas = {
     path = ./.;
@@ -18,8 +18,10 @@
       "disko-raid"
       "copyparty"
     ];
-    # the static address below, for deploy and for a reinstall by kexec
-    deploy.targetHost = "192.168.178.10";
+    # deployed through the hub (modules/hosts/phoebe), from anywhere; the LAN
+    # address below for a reinstall by kexec, or `deploy --target` when the
+    # tunnel is down
+    deploy.targetHost = lib.head config.wireguard.resolved.hub.members.atlas.addresses;
     provision.targetUser = "root";
     provision.targetHost = "192.168.178.10";
 

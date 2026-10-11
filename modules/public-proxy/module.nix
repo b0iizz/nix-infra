@@ -310,11 +310,7 @@ let
 
   # All tunnel addresses of a member, IPv4 first.
   addressesOf =
-    host:
-    if net == null || !(net.members ? ${host}) then
-      [ ]
-    else
-      map (r: ip.format (ip.parseCidr r)) net.members.${host}.hostRoutes;
+    host: if net == null || !(net.members ? ${host}) then [ ] else net.members.${host}.addresses;
 
   exposedBy =
     origin:

@@ -15,19 +15,24 @@ A Nix flake for a small NixOS fleet: hosts, disk layouts, users, secrets, a Quic
 ## Rules that protect machines and secrets
 
 - IMPORTANT: never run `provision commit`, `provision facter|new --target`, `disko`, `deploy switch|boot|test` or `host-keys deploy|rotate` against a real machine or disk without the user's explicit go for that run. `commit` wipes disks; `facter` and `new` with a target kexec a running machine into the installer; the others change live systems. `plan`, `list` and builds are fine.
-- No plaintext secret in the repo. Secrets go through agenix-rekey. Commands that need the FIDO2 token (`agenix rekey -a`, `agenix generate`, `agenix edit`, `host-keys show|export|deploy`) are the user's: suggest `! agenix rekey -a` instead of running them.
+- No plaintext secret in the repo. Secrets go through agenix-rekey. Commands that need the FIDO2 token (`agenix rekey -a`, `agenix generate`, `agenix edit`, `host-keys show|export|deploy`, and any ssh to atlas or phoebe, `deploy plan` included) are the user's: suggest `! agenix rekey -a` instead of running them.
 - Once a host is installed from this repo, changing its `disko-layouts.*` (layout, swap, LUKS) means reinstalling it. Say so before changing them.
 - `flake.nix` is generated: declare an input with `withInputs` in the module that needs it, then run `nix run .#write-flake`.
 - Work on a branch or worktree, never on `main`. Do not push changes, give the user the merge command.
 
-## Current state (2026-10-09)
+## Current state (2026-10-11)
 
 Re-check before relying on it:
 
-- `prometheus` (Framework 13) is the only host, and it is installed from this repo: btrfs and swap as LVM volumes in one LUKS volume (`lsblk -f`). Changing its `disko-layouts.*` now means reinstalling it.
-- This laptop is `prometheus` (`uname -n`), and the host has no `deploy.targetHost`, so `deploy` and `host-keys deploy` for it run locally, on the running system.
+- Three hosts, all installed from this repo, so changing any `disko-layouts.*` means reinstalling that host:
+  - `prometheus` (Framework 13, this laptop, `uname -n`): btrfs and swap as LVM volumes in one LUKS volume (`lsblk -f`). No `deploy.targetHost`, so `deploy` and `host-keys deploy` for it run locally, on the running system.
+  - `atlas` (home server, 192.168.178.10, no LUKS): copyparty on a RAID 1 at `/data`, published as nas.grebes.net through phoebe.
+  - `phoebe` (IONOS VPS, 87.106.233.164, the only public address): TLS and reverse proxy for atlas (`modules/public-proxy/`, `edge` tunnel), Cloudflare DNS, the `public-facing` role.
+- WireGuard `hub` network (`modules/wireguard.nix`, defined in `modules/hosts/phoebe`): phoebe is the hub at wg.greb.es, atlas and prometheus are spokes. `deploy` reaches atlas and phoebe at their hub addresses; when the tunnel is down use `deploy --target <LAN or public address>`. Provisioning still uses the LAN and public addresses.
+- Admin access: one FIDO2 key (`ed25519-sk`) per admin and token of `secrets/master`, made by `agenix generate` (`modules/users.nix`), authorized for root and the admin on every host. agenix installs the key handles on the admin's `keyHosts` (prometheus) as `~/.ssh/id_ed25519_sk_<token>`. Each login needs a touch; the CLIs share one ssh connection per host and run (`ssh_setup` in `modules/lib/cli.nix`).
 - It is graphical: niri session (greeter default), quickshell, greeter in cage. The QML runs on hardware now; read the running shell's log with `quickshell log --pid $(pgrep -f 'quickshell --path')`.
-- Open on purpose, don't change or build on them without asking: `nix.settings.trusted-users = [ "@wheel" ]` in `modules/base.nix` (wheel is root through the Nix daemon; `deploy plan` needs it for `nix copy --no-check-sigs --from`), and `modules/wireguard.nix` with `modules/public-proxy/`, which no host uses.
+- `nix.settings.trusted-users` stays at its default (root only): a trusted user is root through the Nix daemon, which made the sudo password worthless. Nothing in the tools needs it; root on a target is always trusted.
+- Never import store paths from a fleet host into this laptop's store (`nix copy --from`, `--no-check-sigs`): a broken-into host could plant paths that later deploys reuse.
 - Never run on hardware: the `lock-before-sleep` swayidle hook under hyprland and sway; hibernate and resume through the encrypted swap; a remote install.
 
 ## Commands

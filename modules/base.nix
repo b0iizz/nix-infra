@@ -2,7 +2,6 @@
 {
   flake.modules.nixos.base = {
     nix.settings = {
-      trusted-users = [ "@wheel" ];
       experimental-features = lib.mkDefault [
         "nix-command"
         "flakes"

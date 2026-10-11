@@ -21,17 +21,28 @@ let
 
   rcfg = config.registry;
 
-  adminSecretId = user: "user-ssh-${user}";
+  # An admin has one FIDO2 key per token of the master identities
+  # (`<token>-identity.hmac` in secrets/master), so the backup token opens
+  # the hosts, too.
+  tokens = lib.pipe (builtins.readDir (rcfg.secretsDir + "/master")) [
+    attrNames
+    (builtins.filter (lib.hasSuffix "-identity.hmac"))
+    (map (lib.removeSuffix "-identity.hmac"))
+  ];
 
-  # The admin key's generator (below) writes the public key next to the
-  # generated secret as `<secret>.pub`; agenix-rekey's own `ssh-ed25519`
-  # generator only produces the private key.
-  adminPublicKey =
+  adminSecretId = user: token: "user-ssh-${user}-${token}";
+
+  # The admin keys' generator (below) writes the public key next to the
+  # generated secret as `<secret>.pub`.
+  adminPublicKeys =
     user:
-    let
-      file = rcfg.secretsDir + "/generated/${adminSecretId user}.pub";
-    in
-    if builtins.pathExists file then lib.fileContents file else null;
+    lib.concatMap (
+      token:
+      let
+        file = rcfg.secretsDir + "/generated/${adminSecretId user token}.pub";
+      in
+      lib.optional (builtins.pathExists file) (lib.fileContents file)
+    ) tokens;
 
   passwordModeType = types.enum [
     "generated"
@@ -89,12 +100,14 @@ let
           default = false;
           description = ''
             Administrator: member of `wheel`. Instead of accepting
-            `registry.adminKeys`, an SSH key pair is generated for the user
-            with agenix-rekey (`agenix generate`). The public key
-            `secrets/generated/user-ssh-<user>.pub` is authorized for the
-            user and for root (`registry.rootKeys`) on top of `sshKeys`.
-            Commit the `.pub` file. The private key is only installed on
-            the hosts in `keyHosts`.
+            `registry.adminKeys`, `agenix generate` makes the user a FIDO2
+            SSH key (`ed25519-sk`) on every token of secrets/master; each
+            login needs that token and a touch. The public keys
+            `secrets/generated/user-ssh-<user>-<token>.pub` are authorized
+            for the user and for root (`registry.rootKeys`) on top of
+            `sshKeys`. Commit the `.pub` files. The key handles (useless
+            without their token) are only installed on the hosts in
+            `keyHosts`.
           '';
         };
 
@@ -103,10 +116,10 @@ let
           default = [ ];
           example = [ "workstation" ];
           description = ''
-            Hosts (that can decrypt secrets) where an admin's generated
-            private key is installed as `~/.ssh/id_ed25519` (plus `.pub`).
-            Keep this to the machines you work from: the key opens every
-            host, so each host listed here can reach all the others.
+            Hosts (that can decrypt secrets) where an admin's key handles
+            are installed as `~/.ssh/id_ed25519_sk_<token>` (plus `.pub`),
+            and ssh is told to use them. Keep this to the machines you
+            work from.
           '';
         };
 
@@ -151,7 +164,8 @@ let
   accountsFor = host: {
     inherit (rcfg.userPolicy) mutableUsers sudoNeedsPassword perHostPasswords;
     root = rcfg.rootUser;
-    adminPublicKeys = lib.mapAttrs (name: _: adminPublicKey name) rcfg.users;
+    inherit tokens;
+    adminPublicKeys = lib.mapAttrs (name: _: adminPublicKeys name) rcfg.users;
     roleGroups = lib.unique (
       lib.concatMap (role: rcfg.userPolicy.roleGroups.${role} or [ ]) host.roles
     );
@@ -191,7 +205,7 @@ in
     rootKeys = mkOption {
       type = types.listOf types.str;
       readOnly = true;
-      default = rcfg.adminKeys ++ lib.remove null (map adminPublicKey adminNames);
+      default = rcfg.adminKeys ++ lib.concatMap adminPublicKeys adminNames;
       defaultText = "`adminKeys` plus the generated public keys of all admins";
       description = ''
         Keys authorized for root on every host and on the installer
@@ -322,12 +336,13 @@ in
 
         homeOf = user: config.users.users.${user}.home;
 
-        # Pregenerated identity, installed as ~/.ssh/id_ed25519 on the user's
-        # `keyHosts`. Every other host only declares it so that
-        # `agenix generate` creates it; it never reaches them.
+        # Key handles, installed as ~/.ssh/id_ed25519_sk_<token> on the user's
+        # `keyHosts`. Every other host only declares them so that
+        # `agenix generate` creates them; they never reach them.
         holdsKey = user: elem hostName adminUsers.${user}.keyHosts;
-        adminKeySecret = user: {
-          ${adminSecretId user} = {
+        keyFile = user: token: "${homeOf user}/.ssh/id_ed25519_sk_${token}";
+        adminKeySecret = user: token: {
+          ${adminSecretId user token} = {
             generator.tags = [ "admin-key" ];
             generator.script =
               {
@@ -340,7 +355,10 @@ in
               ''
                 dir=$(mktemp -d)
                 trap 'rm -rf "$dir"' EXIT
-                ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" -C ${lib.escapeShellArg name} -f "$dir/key" >/dev/null
+                # the token itself makes the key: prompts, PIN and touch on the
+                # terminal, stdout carries only the handle
+                read -r -p ${lib.escapeShellArg "${name}: plug in the token '${token}' (only that one), press Enter, then touch it: "} _ </dev/tty
+                ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519-sk -N "" -C ${lib.escapeShellArg name} -f "$dir/key" </dev/tty >/dev/tty
                 cp "$dir/key.pub" ${lib.escapeShellArg "${lib.removeSuffix ".age" file}.pub"}
                 cat "$dir/key"
               '';
@@ -348,7 +366,7 @@ in
           // (
             if holdsKey user then
               {
-                path = "${homeOf user}/.ssh/id_ed25519";
+                path = keyFile user token;
                 owner = user;
                 mode = "0400";
               }
@@ -356,17 +374,8 @@ in
               { intermediary = true; }
           );
         };
-
-        adminKeyTmpfiles =
-          user:
-          let
-            group = config.users.users.${user}.group;
-            pub = userAccounts.adminPublicKeys.${user};
-          in
-          [ "d ${homeOf user}/.ssh 0700 ${user} ${group} -" ]
-          ++ lib.optional (
-            pub != null
-          ) "f+ ${homeOf user}/.ssh/id_ed25519.pub 0644 ${user} ${group} - ${pub}";
+        adminKeySecrets = user: map (adminKeySecret user) userAccounts.tokens;
+        keyHolders = lib.optionals canDecrypt (lib.filter holdsKey (attrNames adminUsers));
 
         hashFile = user: config.age.secrets.${secretId "hash" user}.path;
         passwordFor = user: lib.optionalAttrs (generated ? ${user}) { hashedPasswordFile = hashFile user; };
@@ -388,10 +397,7 @@ in
                 shell = shellOf u.shell;
                 extraGroups = lib.optional u.admin "wheel" ++ u.extraGroups ++ userAccounts.roleGroups;
                 openssh.authorizedKeys.keys =
-                  u.sshKeys
-                  ++ lib.optional (
-                    u.admin && userAccounts.adminPublicKeys.${name} != null
-                  ) userAccounts.adminPublicKeys.${name};
+                  u.sshKeys ++ lib.optionals u.admin userAccounts.adminPublicKeys.${name};
               }
               // (passwordFor name)
             ) users)
@@ -415,28 +421,39 @@ in
               ])
               (_: {
                 enable = mkDefault true;
-              });
+              })
+            // {
+              # ssh only tries the default key names on its own; whichever token
+              # is plugged in signs, the other handle fails and is skipped
+              ssh.extraConfig = lib.mkAfter (
+                lib.concatMapStrings (user: ''
+                  Match localuser ${user}
+                  ${lib.concatMapStrings (token: "  IdentityFile ${keyFile user token}\n") userAccounts.tokens}
+                '') keyHolders
+                + lib.optionalString (keyHolders != [ ]) "Match all\n"
+              );
+            };
 
           age.secrets = mkMerge (
             map passwordSecrets (attrNames generated)
-            ++ lib.optionals canDecrypt (map adminKeySecret (attrNames adminUsers))
+            ++ lib.optionals canDecrypt (lib.concatMap adminKeySecrets (attrNames adminUsers))
           );
 
           # Every user's code lives in ~/Projects, kept on hosts that wipe their root
           persist.home.directories = [ "Projects" ];
 
           systemd.tmpfiles.rules =
-            lib.optionals canDecrypt (
-              lib.concatMap adminKeyTmpfiles (lib.filter holdsKey (attrNames adminUsers))
-            )
+            map (user: "d ${homeOf user}/.ssh 0700 ${user} ${config.users.users.${user}.group} -") keyHolders
             ++ lib.mapAttrsToList (name: u: "d ${u.home}/Projects 0755 ${name} ${u.group} -") (
               filterAttrs (_: u: u.isNormalUser) config.users.users
             );
 
           assertions = [
             {
-              assertion = lib.all (n: userAccounts.adminPublicKeys.${n} != null) (attrNames adminUsers);
-              message = "admin users without a generated key: run `agenix generate` and commit secrets/generated/user-ssh-*.pub";
+              assertion = lib.all (
+                n: lib.length userAccounts.adminPublicKeys.${n} == lib.length userAccounts.tokens
+              ) (attrNames adminUsers);
+              message = "admin users without a key on every token: run `agenix generate` and commit secrets/generated/user-ssh-*.pub";
             }
             {
               assertion = !(elem "root" (attrNames users));

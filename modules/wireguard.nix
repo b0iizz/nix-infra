@@ -412,6 +412,7 @@ let
             peers
             ;
           ips = map (a: "${ip.format a}/${toString (prefixLengthOf a)}") addresses;
+          addresses = map ip.format addresses;
           hostRoutes = map ip.hostCidr addresses;
           extraRoutes = m.routes;
           endpoint =

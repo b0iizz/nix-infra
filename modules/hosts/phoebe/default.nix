@@ -18,7 +18,7 @@
 # plus `agenix generate` for the WireGuard keys (edge and hub networks).
 #
 # Disks: root on ext4 with swap, no LUKS (a VPS has to boot unattended).
-{ ... }:
+{ config, lib, ... }:
 let
   hubEndpoint = "wg.greb.es";
   address = {
@@ -77,7 +77,8 @@ in
       "disko-root-ext4"
       "public-facing"
     ];
-    deploy.targetHost = address.ipv4;
+    # through its own hub; `deploy --target 87.106.233.164` when the tunnel is down
+    deploy.targetHost = lib.head config.wireguard.resolved.hub.members.phoebe.addresses;
     provision.targetUser = "root";
     provision.targetHost = address.ipv4;
 

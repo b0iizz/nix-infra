@@ -12,7 +12,12 @@
 { self, lib, ... }:
 {
   flake.modules.nixos.workstation =
-    { config, pkgs, ... }:
+    {
+      config,
+      pkgs,
+      wireguard,
+      ...
+    }:
     {
       imports = [ self.modules.nixos.persist ];
 
@@ -41,6 +46,18 @@
 
       services.gvfs.enable = true;
       programs.localsend.enable = true;
+
+      # The ports opened for the LAN (LocalSend, Steam, mDNS, ...) stay shut to
+      # the fleet's WireGuard tunnels: a broken-into server must not reach them.
+      # A port opened on the tunnel itself (`networking.firewall.interfaces`)
+      # leaves that tunnel alone.
+      # ponytail: iptables only; with networking.nftables this needs a table of its own
+      networking.firewall.extraCommands = lib.concatMapStrings (
+        i:
+        lib.optionalString (!(config.networking.firewall.interfaces ? ${i.interface})) ''
+          ip46tables -I nixos-fw -i ${i.interface} -m conntrack --ctstate NEW -j nixos-fw-refuse
+        ''
+      ) (lib.attrValues wireguard.interfaces);
 
       persist = {
         directories = [
