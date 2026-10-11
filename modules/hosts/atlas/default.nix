@@ -22,6 +22,10 @@
       {
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
+
+        # 8 GiB of RAM for Minecraft and Jellyfin, and the layout has no swap
+        # partition by default; zram needs no disk layout change
+        zramSwap.enable = true;
       }
     ];
   };
