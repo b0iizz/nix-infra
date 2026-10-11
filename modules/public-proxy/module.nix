@@ -28,8 +28,7 @@
 # from gateway to origin; origins never look at the aggregate.
 #
 # This file is the glue: it resolves services into backend-neutral routes,
-# validates them, derives DNS records (of the services, and of a gateway's
-# tunnel `endpoint` name when it is in a zone), sets up the tunnel and the parts of
+# validates them, derives DNS records (plus `extraRecords`), sets up the tunnel and the parts of
 # a gateway every backend shares (firewall, Let's Encrypt). The rest of
 # this directory plugs into it:
 #
@@ -506,26 +505,8 @@ let
     ++ map (p: "${gw}: udp port ${toString p} is used twice") (duplicates udp)
     ++ optional (elem cfg.tunnel.port udp) "${gw}: udp port ${toString cfg.tunnel.port} is the tunnel port";
 
-  # The name origins dial for the tunnel, if it lives in one of the zones:
-  # DNS only, WireGuard is not HTTP.
-  endpointRecords = concatMap (
-    gw:
-    let
-      g = cfg.gateways.${gw};
-      zone = if g.endpoint == null then null else zoneOf g.endpoint;
-      record = type: content: {
-        name = g.endpoint;
-        inherit zone type content;
-        proxied = false;
-      };
-    in
-    optionals (zone != null) (
-      optional (g.ipv4 != null) (record "A" g.ipv4) ++ optional (g.ipv6 != null) (record "AAAA" g.ipv6)
-    )
-  ) allGateways;
-
   records =
-    endpointRecords
+    map (r: r // { zone = zoneOf r.name; }) cfg.extraRecords
     ++ concatMap (
       r:
       let
@@ -919,6 +900,32 @@ in
 
       };
 
+    };
+
+    extraRecords = mkOption {
+      type = types.listOf (
+        types.submodule {
+          options = {
+            name = mkOption { type = types.str; };
+            type = mkOption {
+              type = types.enum [
+                "A"
+                "AAAA"
+              ];
+            };
+            content = mkOption { type = types.str; };
+            proxied = mkOption {
+              type = types.bool;
+              default = false;
+            };
+          };
+        }
+      );
+      default = [ ];
+      description = ''
+        Records kept in Cloudflare next to those of the services, for names
+        that are no service, e.g. the endpoint of a WireGuard hub.
+      '';
     };
 
     records = mkOption {
