@@ -320,6 +320,13 @@ withInputs
             # the module binds only volume paths without a ${u} into the
             # service's sandbox
             systemd.services.copyparty.serviceConfig.BindPaths = lib.optional (cfg.homes != null) cfg.homes;
+            # it listens on tunnel addresses (HTTP, SFTP), which exist once the
+            # WireGuard links are up; started earlier, HTTP fails to start
+            # and SFTP stays off until the next restart
+            systemd.services.copyparty = {
+              wants = [ "network-online.target" ];
+              after = [ "network-online.target" ];
+            };
 
             # the module only creates a missing volume path, it does not take
             # over one that exists (a mount point)
