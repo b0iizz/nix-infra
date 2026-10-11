@@ -30,13 +30,20 @@
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
 
-        # /data/share at https://nas.grebes.net: the top is for admin only,
-        # `public` is read by everyone and edited by family, `private` is
-        # for family and admin alone (guests see nothing)
+        # /data/share at https://nas.grebes.net, login with name and
+        # password: admin may do anything everywhere, the top is admin's
+        # only, `public` is read by everyone and edited by the family,
+        # `video`, `music` and `images` are the family's (guests see nothing)
         copyparty.accounts = [
           "admin"
-          "family"
+          "joni"
+          "anni"
         ];
+        copyparty.groups.family = [
+          "joni"
+          "anni"
+        ];
+        copyparty.usernames = true;
         copyparty.volumes = {
           "/" = {
             path = "/data/share";
@@ -48,18 +55,18 @@
               r = "*";
               rwmd = [
                 "admin"
-                "family"
+                "@family"
               ];
             };
           };
-          "/private" = {
-            path = "/data/share/private";
-            access.rwmd = [
-              "admin"
-              "family"
-            ];
-          };
-        };
+        }
+        // lib.genAttrs [ "/video" "/music" "/images" ] (url: {
+          path = "/data/share${url}";
+          access.rwmd = [
+            "admin"
+            "@family"
+          ];
+        });
 
         # through the gateway phoebe
         publicProxy.expose.copyparty = {
@@ -67,6 +74,11 @@
           zone = "grebes.net";
           # per request; bounds what a stolen login can fill in one go
           maxBodySize = "50G";
+        };
+        # in the page titles instead of the host name
+        services.copyparty.settings = {
+          bname = "nas.grebes.net";
+          doctitle = "nas.grebes.net";
         };
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
