@@ -1,5 +1,8 @@
 # Framework 13 laptop (13th gen Intel). Everything a desktop needs is in the
 # roles; what is left here belongs to this machine or this person.
+#
+# Prometheus stole fire from the gods and gave it to people; this laptop was
+# the first machine to give its owner NixOS.
 { lib, withInputs, ... }:
 withInputs
   {
