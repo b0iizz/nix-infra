@@ -5,7 +5,8 @@
 # brother: this machine carries the weight of everything else.
 #
 # Disks: root on the SSD with the wiped-every-boot root, no LUKS (it has to
-# boot without anyone there); the two 4 TB IronWolfs as a RAID 1 at /data.
+# boot without anyone there), 24 GiB swap; the two 4 TB IronWolfs as a
+# RAID 1 at /data.
 { ... }:
 {
   registry.hosts.atlas = {
@@ -23,8 +24,9 @@
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
 
-        # 8 GiB of RAM for Minecraft and Jellyfin, and the layout has no swap
-        # partition by default; zram needs no disk layout change
+        # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
+        # for what does not fit, zram in front of it for speed
+        disko-layouts.swap.size = "24GiB";
         zramSwap.enable = true;
       }
     ];
