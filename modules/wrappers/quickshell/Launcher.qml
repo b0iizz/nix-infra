@@ -197,7 +197,7 @@ Scope {
 
                 anchors.centerIn: parent
                 width: 480
-                height: 48 + 28 * window.matches.length
+                height: content.implicitHeight + 2 * content.anchors.margins
                 color: Qt.alpha(Theme.base00, Theme.opacityPopups)
 
                 MouseArea {
@@ -207,6 +207,8 @@ Scope {
             }
 
             Column {
+                id: content
+
                 anchors.fill: box
                 anchors.margins: 8
                 spacing: 4
