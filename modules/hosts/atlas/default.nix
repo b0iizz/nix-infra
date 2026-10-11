@@ -16,8 +16,10 @@
       "disko-root-impermanence"
       "disko-raid"
     ];
+    # the static address below, for deploy and for a reinstall by kexec
+    deploy.targetHost = "192.168.178.10";
     provision.targetUser = "root";
-    provision.targetHost = "192.168.178.44";
+    provision.targetHost = "192.168.178.10";
 
     modules = [
       {
