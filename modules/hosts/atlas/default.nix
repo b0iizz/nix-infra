@@ -31,9 +31,9 @@
         boot.loader.efi.canTouchEfiVariables = true;
 
         # /data/share at https://nas.grebes.net, login with name and
-        # password: the top is for admin only, `public` is read by everyone
-        # and edited by admin and the family, `video`, `music` and `images`
-        # are the family's alone (guests see nothing)
+        # password: admin may do anything everywhere, the top is admin's
+        # only, `public` is read by everyone and edited by the family,
+        # `video`, `music` and `images` are the family's (guests see nothing)
         copyparty.accounts = [
           "admin"
           "joni"
@@ -62,7 +62,10 @@
         }
         // lib.genAttrs [ "/video" "/music" "/images" ] (url: {
           path = "/data/share${url}";
-          access.rwmd = [ "@family" ];
+          access.rwmd = [
+            "admin"
+            "@family"
+          ];
         });
 
         # through the gateway phoebe
