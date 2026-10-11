@@ -28,7 +28,8 @@
 # from gateway to origin; origins never look at the aggregate.
 #
 # This file is the glue: it resolves services into backend-neutral routes,
-# validates them, derives DNS records, sets up the tunnel and the parts of
+# validates them, derives DNS records (of the services, and of a gateway's
+# tunnel `endpoint` name when it is in a zone), sets up the tunnel and the parts of
 # a gateway every backend shares (firewall, Let's Encrypt). The rest of
 # this directory plugs into it:
 #
@@ -505,39 +506,59 @@ let
     ++ map (p: "${gw}: udp port ${toString p} is used twice") (duplicates udp)
     ++ optional (elem cfg.tunnel.port udp) "${gw}: udp port ${toString cfg.tunnel.port} is the tunnel port";
 
-  records = concatMap (
-    r:
+  # The name origins dial for the tunnel, if it lives in one of the zones:
+  # DNS only, WireGuard is not HTTP.
+  endpointRecords = concatMap (
+    gw:
     let
-      addressRecords = concatMap (
-        d:
-        concatMap (
-          gw:
-          let
-            g = cfg.gateways.${gw};
-            record = type: content: {
-              name = d;
-              zone = zoneOf d;
-              inherit type content;
-              proxied = r.cloudflareProxied;
-            };
-          in
-          optional (g.ipv4 != null) (record "A" g.ipv4) ++ optional (g.ipv6 != null) (record "AAAA" g.ipv6)
-        ) r.gateways
-      ) r.domains;
-      srv = r.service.dns.srv;
-      srvDomain = if srv.domain != null then srv.domain else zoneOf (head r.domains);
-      srvRecord = {
-        name = "_${srv.service}._${r.protocol}.${srvDomain}";
-        zone = zoneOf srvDomain;
-        type = "SRV";
-        inherit (srv) priority weight;
-        port = r.publicPort;
-        target = head r.domains;
+      g = cfg.gateways.${gw};
+      zone = if g.endpoint == null then null else zoneOf g.endpoint;
+      record = type: content: {
+        name = g.endpoint;
+        inherit zone type content;
         proxied = false;
       };
     in
-    optionals r.service.dns.manage (addressRecords ++ optional (srv != null) srvRecord)
-  ) services;
+    optionals (zone != null) (
+      optional (g.ipv4 != null) (record "A" g.ipv4) ++ optional (g.ipv6 != null) (record "AAAA" g.ipv6)
+    )
+  ) allGateways;
+
+  records =
+    endpointRecords
+    ++ concatMap (
+      r:
+      let
+        addressRecords = concatMap (
+          d:
+          concatMap (
+            gw:
+            let
+              g = cfg.gateways.${gw};
+              record = type: content: {
+                name = d;
+                zone = zoneOf d;
+                inherit type content;
+                proxied = r.cloudflareProxied;
+              };
+            in
+            optional (g.ipv4 != null) (record "A" g.ipv4) ++ optional (g.ipv6 != null) (record "AAAA" g.ipv6)
+          ) r.gateways
+        ) r.domains;
+        srv = r.service.dns.srv;
+        srvDomain = if srv.domain != null then srv.domain else zoneOf (head r.domains);
+        srvRecord = {
+          name = "_${srv.service}._${r.protocol}.${srvDomain}";
+          zone = zoneOf srvDomain;
+          type = "SRV";
+          inherit (srv) priority weight;
+          port = r.publicPort;
+          target = head r.domains;
+          proxied = false;
+        };
+      in
+      optionals r.service.dns.manage (addressRecords ++ optional (srv != null) srvRecord)
+    ) services;
 
   # Handed to every host as the `publicProxy` module argument, together
   # with the fields of `internal.hostData`. Origins must not touch `routes`

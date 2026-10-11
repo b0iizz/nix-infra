@@ -6,7 +6,8 @@
 #
 # Disks: root on the SSD with the wiped-every-boot root, no LUKS (it has to
 # boot without anyone there), 24 GiB swap; the two 4 TB IronWolfs as a
-# RAID 1 at /data. Static address 192.168.178.10.
+# RAID 1 at /data, served by copyparty at nas.grebes.net through the gateway
+# phoebe. Static address 192.168.178.10.
 { ... }:
 {
   registry.hosts.atlas = {
@@ -15,6 +16,7 @@
     roles = [
       "disko-root-impermanence"
       "disko-raid"
+      "copyparty"
     ];
     # the static address below, for deploy and for a reinstall by kexec
     deploy.targetHost = "192.168.178.10";
@@ -25,6 +27,12 @@
       {
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
+
+        # /data at https://nas.grebes.net, through the gateway phoebe
+        publicProxy.expose.copyparty = {
+          subdomain = "nas";
+          zone = "grebes.net";
+        };
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
         # for what does not fit, zram in front of it for speed

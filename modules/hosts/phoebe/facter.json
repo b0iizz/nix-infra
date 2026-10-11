@@ -29,10 +29,7 @@
       {
         "index": 6,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "bridge"
-        ],
+        "class_list": ["pci", "bridge"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -84,10 +81,7 @@
       {
         "index": 7,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "bridge"
-        ],
+        "class_list": ["pci", "bridge"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -143,10 +137,7 @@
       {
         "index": 8,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "bridge"
-        ],
+        "class_list": ["pci", "bridge"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -199,12 +190,8 @@
         },
         "driver": "piix4_smbus",
         "driver_module": "i2c_piix4",
-        "drivers": [
-          "piix4_smbus"
-        ],
-        "driver_modules": [
-          "i2c_piix4"
-        ],
+        "drivers": ["piix4_smbus"],
+        "driver_modules": ["i2c_piix4"],
         "module_alias": "pci:v00008086d00007113sv00001AF4sd00001100bc06sc80i00"
       }
     ],
@@ -325,9 +312,7 @@
           "spectre_v2_user",
           "tsa"
         ],
-        "power_management": [
-          ""
-        ],
+        "power_management": [""],
         "bogo": 5192,
         "cache": 512,
         "units": 16,
@@ -352,10 +337,7 @@
       {
         "index": 19,
         "attached_to": 15,
-        "class_list": [
-          "disk",
-          "block_device"
-        ],
+        "class_list": ["disk", "block_device"],
         "base_class": {
           "hex": "0106",
           "name": "Mass Storage Device",
@@ -394,24 +376,15 @@
         ],
         "driver": "virtio-pci",
         "driver_module": "virtio_pci",
-        "drivers": [
-          "virtio-pci",
-          "virtio_blk"
-        ],
-        "driver_modules": [
-          "virtio_blk",
-          "virtio_pci"
-        ]
+        "drivers": ["virtio-pci", "virtio_blk"],
+        "driver_modules": ["virtio_blk", "virtio_pci"]
       }
     ],
     "graphics_card": [
       {
         "index": 12,
         "attached_to": 0,
-        "class_list": [
-          "graphics_card",
-          "pci"
-        ],
+        "class_list": ["graphics_card", "pci"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -468,12 +441,8 @@
         },
         "driver": "virtio-pci",
         "driver_module": "virtio_pci",
-        "drivers": [
-          "virtio-pci"
-        ],
-        "driver_modules": [
-          "virtio_pci"
-        ],
+        "drivers": ["virtio-pci"],
+        "driver_modules": ["virtio_pci"],
         "module_alias": "pci:v00001AF4d00001050sv00001AF4sd00001100bc03sc00i00"
       }
     ],
@@ -481,10 +450,7 @@
       {
         "index": 20,
         "attached_to": 5,
-        "class_list": [
-          "usb",
-          "hub"
-        ],
+        "class_list": ["usb", "hub"],
         "bus_type": {
           "hex": "0086",
           "name": "USB",
@@ -557,12 +523,8 @@
         "hotplug": "usb",
         "driver": "hub",
         "driver_module": "usbcore",
-        "drivers": [
-          "hub"
-        ],
-        "driver_modules": [
-          "usbcore"
-        ],
+        "drivers": ["hub"],
+        "driver_modules": ["usbcore"],
         "module_alias": "usb:v1D6Bp0001d0702dc09dsc00dp00ic09isc00ip00in00"
       }
     ],
@@ -570,9 +532,7 @@
       {
         "index": 4,
         "attached_to": 0,
-        "class_list": [
-          "memory"
-        ],
+        "class_list": ["memory"],
         "base_class": {
           "hex": "0101",
           "name": "Internally Used Class",
@@ -596,9 +556,7 @@
       {
         "index": 18,
         "attached_to": 12,
-        "class_list": [
-          "monitor"
-        ],
+        "class_list": ["monitor"],
         "base_class": {
           "hex": "0100",
           "name": "Monitor",
@@ -744,10 +702,7 @@
       {
         "index": 21,
         "attached_to": 20,
-        "class_list": [
-          "mouse",
-          "usb"
-        ],
+        "class_list": ["mouse", "usb"],
         "bus_type": {
           "hex": "0086",
           "name": "USB",
@@ -783,9 +738,7 @@
         "model": "QEMU USB Tablet",
         "sysfs_id": "/devices/pci0000:00/0000:00:01.2/usb1/1-1/1-1:1.0",
         "sysfs_bus_id": "1-1:1.0",
-        "unix_device_names": [
-          "/dev/input/mice"
-        ],
+        "unix_device_names": ["/dev/input/mice"],
         "unix_device_name2": "/dev/input/mouse0",
         "resources": [
           {
@@ -826,18 +779,11 @@
         "hotplug": "usb",
         "driver": "usbhid",
         "driver_module": "usbhid",
-        "drivers": [
-          "usbhid"
-        ],
-        "driver_modules": [
-          "usbhid"
-        ],
+        "drivers": ["usbhid"],
+        "driver_modules": ["usbhid"],
         "driver_info": {
           "type": "mouse",
-          "db_entry_0": [
-            "explorerps/2",
-            "exps2"
-          ],
+          "db_entry_0": ["explorerps/2", "exps2"],
           "xf86": "explorerps/2",
           "gpm": "exps2",
           "buttons": -1,
@@ -850,9 +796,7 @@
       {
         "index": 17,
         "attached_to": 11,
-        "class_list": [
-          "network_controller"
-        ],
+        "class_list": ["network_controller"],
         "bus_type": {
           "hex": "008f",
           "name": "Virtio",
@@ -877,9 +821,7 @@
         "model": "Virtio Ethernet Card 0",
         "sysfs_id": "/devices/pci0000:00/0000:00:06.0/virtio3",
         "sysfs_bus_id": "virtio3",
-        "unix_device_names": [
-          "ens6"
-        ],
+        "unix_device_names": ["ens6"],
         "resources": [
           {
             "type": "hwaddr",
@@ -892,12 +834,8 @@
         ],
         "driver": "virtio_net",
         "driver_module": "virtio_net",
-        "drivers": [
-          "virtio_net"
-        ],
-        "driver_modules": [
-          "virtio_net"
-        ],
+        "drivers": ["virtio_net"],
+        "driver_modules": ["virtio_net"],
         "module_alias": "virtio:d00000001v00001AF4"
       }
     ],
@@ -905,9 +843,7 @@
       {
         "index": 22,
         "attached_to": 0,
-        "class_list": [
-          "network_interface"
-        ],
+        "class_list": ["network_interface"],
         "base_class": {
           "hex": "0107",
           "name": "Network Interface",
@@ -920,16 +856,12 @@
         },
         "model": "Loopback network interface",
         "sysfs_id": "/class/net/lo",
-        "unix_device_names": [
-          "lo"
-        ]
+        "unix_device_names": ["lo"]
       },
       {
         "index": 23,
         "attached_to": 17,
-        "class_list": [
-          "network_interface"
-        ],
+        "class_list": ["network_interface"],
         "base_class": {
           "hex": "0107",
           "name": "Network Interface",
@@ -943,9 +875,7 @@
         "model": "Ethernet network interface",
         "sysfs_id": "/class/net/ens6",
         "sysfs_device_link": "/devices/pci0000:00/0000:00:06.0/virtio3",
-        "unix_device_names": [
-          "ens6"
-        ],
+        "unix_device_names": ["ens6"],
         "resources": [
           {
             "type": "hwaddr",
@@ -958,22 +888,15 @@
         ],
         "driver": "virtio_net",
         "driver_module": "virtio_net",
-        "drivers": [
-          "virtio_net"
-        ],
-        "driver_modules": [
-          "virtio_net"
-        ]
+        "drivers": ["virtio_net"],
+        "driver_modules": ["virtio_net"]
       }
     ],
     "pci": [
       {
         "index": 9,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "unknown"
-        ],
+        "class_list": ["pci", "unknown"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -1029,21 +952,14 @@
         },
         "driver": "virtio-pci",
         "driver_module": "virtio_pci",
-        "drivers": [
-          "virtio-pci"
-        ],
-        "driver_modules": [
-          "virtio_pci"
-        ],
+        "drivers": ["virtio-pci"],
+        "driver_modules": ["virtio_pci"],
         "module_alias": "pci:v00001AF4d00001005sv00001AF4sd00000004bc00scFFi00"
       },
       {
         "index": 11,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "unknown"
-        ],
+        "class_list": ["pci", "unknown"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -1100,21 +1016,14 @@
         },
         "driver": "virtio-pci",
         "driver_module": "virtio_pci",
-        "drivers": [
-          "virtio-pci"
-        ],
-        "driver_modules": [
-          "virtio_pci"
-        ],
+        "drivers": ["virtio-pci"],
+        "driver_modules": ["virtio_pci"],
         "module_alias": "pci:v00001AF4d00001000sv00001AF4sd00000001bc02sc00i00"
       },
       {
         "index": 13,
         "attached_to": 0,
-        "class_list": [
-          "pci",
-          "unknown"
-        ],
+        "class_list": ["pci", "unknown"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -1171,12 +1080,8 @@
         },
         "driver": "virtio-pci",
         "driver_module": "virtio_pci",
-        "drivers": [
-          "virtio-pci"
-        ],
-        "driver_modules": [
-          "virtio_pci"
-        ],
+        "drivers": ["virtio-pci"],
+        "driver_modules": ["virtio_pci"],
         "module_alias": "pci:v00001AF4d00001001sv00001AF4sd00000002bc01sc00i00"
       }
     ],
@@ -1184,10 +1089,7 @@
       {
         "index": 10,
         "attached_to": 0,
-        "class_list": [
-          "storage_controller",
-          "pci"
-        ],
+        "class_list": ["storage_controller", "pci"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -1277,20 +1179,14 @@
         },
         "driver": "ata_piix",
         "driver_module": "ata_piix",
-        "drivers": [
-          "ata_piix"
-        ],
-        "driver_modules": [
-          "ata_piix"
-        ],
+        "drivers": ["ata_piix"],
+        "driver_modules": ["ata_piix"],
         "module_alias": "pci:v00008086d00007010sv00001AF4sd00001100bc01sc01i80"
       },
       {
         "index": 15,
         "attached_to": 13,
-        "class_list": [
-          "storage_controller"
-        ],
+        "class_list": ["storage_controller"],
         "bus_type": {
           "hex": "008f",
           "name": "Virtio",
@@ -1317,12 +1213,8 @@
         "sysfs_bus_id": "virtio2",
         "driver": "virtio_blk",
         "driver_module": "virtio_blk",
-        "drivers": [
-          "virtio_blk"
-        ],
-        "driver_modules": [
-          "virtio_blk"
-        ],
+        "drivers": ["virtio_blk"],
+        "driver_modules": ["virtio_blk"],
         "module_alias": "virtio:d00000002v00001AF4"
       }
     ],
@@ -1333,9 +1225,7 @@
       {
         "index": 14,
         "attached_to": 9,
-        "class_list": [
-          "unknown"
-        ],
+        "class_list": ["unknown"],
         "base_class": {
           "hex": "0000",
           "name": "Unclassified device",
@@ -1353,20 +1243,14 @@
         "sysfs_bus_id": "virtio1",
         "driver": "virtio_rng",
         "driver_module": "virtio_rng",
-        "drivers": [
-          "virtio_rng"
-        ],
-        "driver_modules": [
-          "virtio_rng"
-        ],
+        "drivers": ["virtio_rng"],
+        "driver_modules": ["virtio_rng"],
         "module_alias": "virtio:d00000004v00001AF4"
       },
       {
         "index": 16,
         "attached_to": 12,
-        "class_list": [
-          "unknown"
-        ],
+        "class_list": ["unknown"],
         "base_class": {
           "hex": "0000",
           "name": "Unclassified device",
@@ -1384,12 +1268,8 @@
         "sysfs_bus_id": "virtio0",
         "driver": "virtio_gpu",
         "driver_module": "virtio_gpu",
-        "drivers": [
-          "virtio_gpu"
-        ],
-        "driver_modules": [
-          "virtio_gpu"
-        ],
+        "drivers": ["virtio_gpu"],
+        "driver_modules": ["virtio_gpu"],
         "module_alias": "virtio:d00000010v00001AF4"
       }
     ],
@@ -1397,10 +1277,7 @@
       {
         "index": 5,
         "attached_to": 0,
-        "class_list": [
-          "usb_controller",
-          "pci"
-        ],
+        "class_list": ["usb_controller", "pci"],
         "bus_type": {
           "hex": "0004",
           "name": "PCI",
@@ -1467,25 +1344,15 @@
         },
         "driver": "uhci_hcd",
         "driver_module": "uhci_hcd",
-        "drivers": [
-          "uhci_hcd"
-        ],
-        "driver_modules": [
-          "uhci_hcd"
-        ],
+        "drivers": ["uhci_hcd"],
+        "driver_modules": ["uhci_hcd"],
         "driver_info": {
           "type": "module",
-          "db_entry_0": [
-            "uhci-hcd"
-          ],
+          "db_entry_0": ["uhci-hcd"],
           "active": true,
           "modprobe": true,
-          "names": [
-            "uhci-hcd"
-          ],
-          "module_args": [
-            ""
-          ],
+          "names": ["uhci-hcd"],
+          "module_args": [""],
           "conf": ""
         },
         "module_alias": "pci:v00008086d00007020sv00001AF4sd00001100bc0Csc03i00"
@@ -1591,9 +1458,7 @@
           "name": "RAM",
           "value": 7
         },
-        "memory_type_details": [
-          "Other"
-        ],
+        "memory_type_details": ["Other"],
         "speed": 0
       }
     ],
