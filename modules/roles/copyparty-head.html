@@ -45,6 +45,10 @@
     --i-list-music: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 5H3'/%3E%3Cpath d='M11 12H3'/%3E%3Cpath d='M11 19H3'/%3E%3Cpath d='M21 16V5'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
     --i-layout-grid: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='7' height='7' x='3' y='3' rx='1'/%3E%3Crect width='7' height='7' x='14' y='3' rx='1'/%3E%3Crect width='7' height='7' x='14' y='14' rx='1'/%3E%3Crect width='7' height='7' x='3' y='14' rx='1'/%3E%3C/svg%3E");
     --i-music: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+    --i-layers: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z'/%3E%3Cpath d='M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12'/%3E%3Cpath d='M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17'/%3E%3C/svg%3E");
+    --i-battery-low: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 14v-4'/%3E%3Cpath d='M6 14v-4'/%3E%3Crect x='2' y='6' width='16' height='12' rx='2'/%3E%3C/svg%3E");
+    --i-dices: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='12' height='12' x='2' y='10' rx='2' ry='2'/%3E%3Cpath d='m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6'/%3E%3Cpath d='M6 18h.01'/%3E%3Cpath d='M10 14h.01'/%3E%3Cpath d='M15 6h.01'/%3E%3Cpath d='M18 9h.01'/%3E%3C/svg%3E");
+    --i-file-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Ccircle cx='11.5' cy='14.5' r='2.5'/%3E%3Cpath d='M13.3 16.3 15 18'/%3E%3C/svg%3E");
   }
   html.b.y {
     --ink: #1b2220;
@@ -94,10 +98,11 @@
     --btn-bg: transparent;
     --btn-h-fg: var(--ink);
     --btn-h-bg: var(--hover);
+    /* switched-on toggles in ink; Ruff stays for where you are */
     --btn-1-fg: var(--paper);
-    --btn-1-bg: var(--ruff);
+    --btn-1-bg: var(--ink);
     --btn-1h-fg: var(--paper);
-    --btn-1h-bg: var(--ruff);
+    --btn-1h-bg: var(--ink);
     --btn-bs: none;
     --btn-1-bs: none;
     --op-aa-bg: transparent;
@@ -245,8 +250,98 @@
   }
   html.b #treeh a.on,
   html.b #wtoggle a.on {
-    color: var(--ruff);
-    background: transparent;
+    color: var(--ink);
+    background: var(--hover);
+  }
+  html.b #tree ul a.hl {
+    color: var(--paper);
+    background: var(--ruff);
+  }
+
+  /* the upload pane: icons for its emoji switches, a quiet drop zone */
+  html.b
+    #u2conf
+    :is(
+      label[for="multitask"],
+      label[for="potato"],
+      label[for="u2rand"],
+      label[for="fsearch"]
+    ) {
+    font-size: 0;
+    color: var(--slate);
+    text-shadow: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: var(--radius);
+  }
+  html.b #u2conf input:checked + label {
+    color: var(--paper);
+    text-shadow: none;
+  }
+  html.b
+    #u2conf
+    :is(
+      label[for="multitask"],
+      label[for="potato"],
+      label[for="u2rand"],
+      label[for="fsearch"]
+    )::before,
+  html.b #u2bm::before {
+    content: "";
+    display: inline-block;
+    vertical-align: middle;
+    width: 24px;
+    height: 24px;
+    background: currentColor;
+    mask: var(--i) center / contain no-repeat;
+  }
+  /* its emoji is the only sign of which of four modes is on */
+  html.b #u2conf label[for="u2ow"] {
+    filter: grayscale(1);
+  }
+  html.b label[for="multitask"] {
+    --i: var(--i-layers);
+  }
+  html.b label[for="potato"] {
+    --i: var(--i-battery-low);
+  }
+  html.b label[for="u2rand"] {
+    --i: var(--i-dices);
+  }
+  html.b label[for="fsearch"] {
+    --i: var(--i-file-search);
+  }
+  html.b #u2bm {
+    --i: var(--i-upload);
+  }
+  html.b #op_up2k.srch #u2bm {
+    --i: var(--i-file-search);
+  }
+  html.b #u2btn {
+    color: var(--ink);
+    background: var(--paper);
+    border: 1.5px dashed var(--slate);
+    border-radius: var(--radius);
+    font-size: 1.15em;
+  }
+  html.b #u2btn:hover {
+    border-color: var(--ruff);
+  }
+  html.b #u2bm {
+    font-size: 0;
+    color: var(--ink);
+  }
+  html.b #u2bm sup {
+    display: block;
+    margin-top: 0.3em;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink);
   }
   html.b
     #wtoggle
