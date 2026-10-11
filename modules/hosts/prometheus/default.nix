@@ -95,6 +95,35 @@ withInputs
               ]);
             }
           )
+          (
+            { config, ... }:
+            {
+              # joni's key for copyparty's SFTP on atlas, which cannot check
+              # FIDO2 keys: sftp -P 3922 -i ~/.ssh/id_ed25519_nas joni@10.10.0.55:/video
+              # Made by `agenix generate`, which writes the public half next to
+              # the secret; modules/hosts/atlas authorizes it.
+              age.secrets.copyparty-sftp-joni = {
+                path = "${config.users.users.joni.home}/.ssh/id_ed25519_nas";
+                owner = "joni";
+                mode = "0400";
+                generator.script =
+                  {
+                    lib,
+                    pkgs,
+                    file,
+                    name,
+                    ...
+                  }:
+                  ''
+                    dir=$(mktemp -d)
+                    trap 'rm -rf "$dir"' EXIT
+                    ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" -C ${lib.escapeShellArg name} -f "$dir/key"
+                    cp "$dir/key.pub" ${lib.escapeShellArg "${lib.removeSuffix ".age" file}.pub"}
+                    cat "$dir/key"
+                  '';
+              };
+            }
+          )
         ];
       };
 

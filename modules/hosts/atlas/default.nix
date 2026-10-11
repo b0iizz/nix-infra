@@ -48,8 +48,13 @@
         # with SSH keys: sftp -P 3922 joni@10.10.0.55:/video (start in a
         # folder: only admin may list `/` over SFTP)
         copyparty.sftp.addresses = config.wireguard.resolved.hub.members.atlas.addresses;
-        # nobody can log in yet; a plain key per person (ssh-keygen -t ed25519):
-        # copyparty.sftp.keys.joni = [ "ssh-ed25519 AAAA..." ];
+        # a plain key per person (FIDO2 keys do not work); joni's is made by
+        # `agenix generate` for prometheus (modules/hosts/prometheus)
+        copyparty.sftp.keys.joni =
+          let
+            pub = config.registry.secretsDir + "/generated/copyparty-sftp-joni.pub";
+          in
+          lib.optional (builtins.pathExists pub) (lib.fileContents pub);
         networking.firewall.interfaces.${config.wireguard.resolved.hub.interface}.allowedTCPPorts = [
           3922
         ];
