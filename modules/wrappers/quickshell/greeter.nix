@@ -1,5 +1,6 @@
 # The login screen: a second quickshell wrapper, run by greetd inside cage (a
-# kiosk compositor, so the greeter is a plain fullscreen window), themed like
+# kiosk compositor, so the greeter is a plain fullscreen window; patched for
+# tap-to-click), themed like
 # the shell. It authenticates through greetd and then runs the session command.
 #
 #   settings.users    names to offer
@@ -92,6 +93,11 @@ in
   flake.modules.nixos.greeter =
     { config, pkgs, ... }:
     let
+      # cage never turns tap-to-click on, the other compositors do (cage-tap.patch)
+      cage = pkgs.cage.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./cage-tap.patch ];
+        buildInputs = old.buildInputs ++ [ pkgs.libinput ];
+      });
       greeter = self.packages.${pkgs.stdenv.hostPlatform.system}.quickshell-greeter.extend {
         passthru.settings = {
           users = _: lib.attrNames (lib.filterAttrs (_: u: u.isNormalUser) config.users.users);
@@ -135,7 +141,7 @@ in
         settings.default_session = {
           user = "greeter";
           # -d: no title bar; cage asks clients to draw their own otherwise
-          command = "${lib.getExe pkgs.cage} -d -s -- ${lib.getExe greeter}";
+          command = "${lib.getExe cage} -d -s -- ${lib.getExe greeter}";
         };
       };
     };
