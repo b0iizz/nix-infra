@@ -39,7 +39,7 @@
     defaultSystem = "x86_64-linux";
     adminKeys = [
       # "ssh-ed25519 AAAA... you@workstation"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC97qm0R6Z5M15Qtd9adU1C4g+blKfJusQSz9cT3AxFC user-ssh-joni"
+      #"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC97qm0R6Z5M15Qtd9adU1C4g+blKfJusQSz9cT3AxFC user-ssh-joni"
     ];
   };
 
