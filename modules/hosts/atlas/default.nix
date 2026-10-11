@@ -28,7 +28,38 @@
         boot.loader.systemd-boot.enable = true;
         boot.loader.efi.canTouchEfiVariables = true;
 
-        # /data at https://nas.grebes.net, through the gateway phoebe
+        # /data/share at https://nas.grebes.net: the top is for admin only,
+        # `public` is read by everyone and edited by family, `private` is
+        # for family and admin alone (guests see nothing)
+        copyparty.accounts = [
+          "admin"
+          "family"
+        ];
+        copyparty.volumes = {
+          "/" = {
+            path = "/data/share";
+            access.rwmd = [ "admin" ];
+          };
+          "/public" = {
+            path = "/data/share/public";
+            access = {
+              r = "*";
+              rwmd = [
+                "admin"
+                "family"
+              ];
+            };
+          };
+          "/private" = {
+            path = "/data/share/private";
+            access.rwmd = [
+              "admin"
+              "family"
+            ];
+          };
+        };
+
+        # through the gateway phoebe
         publicProxy.expose.copyparty = {
           subdomain = "nas";
           zone = "grebes.net";
