@@ -615,7 +615,7 @@ let
           { webroot = acmeWebroot; }
         else
           {
-            inherit (acme) dnsProvider;
+            inherit (acme) dnsProvider dnsResolver;
             credentialFiles = mapAttrs' (
               var: _: nameValuePair "${var}_FILE" config.age.secrets.${credentialSecret var}.path
             ) acme.credentials;
@@ -886,6 +886,17 @@ in
           type = types.str;
           default = "cloudflare";
           description = "lego DNS provider name.";
+        };
+
+        dnsResolver = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          example = "1.1.1.1:53";
+          description = ''
+            Resolver lego asks whether the challenge record is visible. `null`
+            is the system's, which may be a provider resolver that does not
+            see new records for a long time.
+          '';
         };
 
         credentials = mkOption {

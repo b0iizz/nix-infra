@@ -34,6 +34,9 @@ in
     origins = [ "atlas" ];
 
     tls.acme.challenge = "dns";
+    # the provider's resolver kept answering "no such name" for the challenge
+    # record that Cloudflare, 1.1.1.1 and 8.8.8.8 all returned
+    tls.acme.dnsResolver = "1.1.1.1:53";
     dns.enable = true;
 
     extraRecords = [
