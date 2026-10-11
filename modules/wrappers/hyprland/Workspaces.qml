@@ -8,8 +8,9 @@ import Quickshell
 import Quickshell.Hyprland
 
 Row {
-    // set by Hyprland itself: the item stays out of the way in other compositors
-    visible: !!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
+    // Only with a live connection to Hyprland. The variable alone is not enough:
+    // Hyprland leaves it in the user manager, and niri then inherits it.
+    visible: Hyprland.focusedWorkspace !== null
     spacing: 8
 
     Repeater {
