@@ -374,6 +374,42 @@
             lockReaderService = false;
           };
         };
+        # bitwarden brings gnome-keyring, unlocked by the greeter's password;
+        # keepassxc is the keyring itself, started with the session, and wins
+        testKeyring =
+          let
+            bitwarden = host [
+              "niri"
+              "greeter"
+              "bitwarden"
+            ];
+            keepassxc = host [
+              "niri"
+              "keepassxc"
+            ];
+          in
+          {
+            expr = {
+              unlocks = lib.hasInfix "pam_gnome_keyring" (pam bitwarden "quickshell-greeter-auth").text;
+              startsDaemon = lib.hasInfix "auto_start" (pam bitwarden "login").text;
+              keepassxcKeyring = keepassxc.services.gnome.gnome-keyring.enable;
+              keepassxcStarts = lib.any (lib.hasInfix "keepassxc") keepassxc.desktop.startup;
+              # with both roles KeePassXC is the keyring
+              both =
+                (host [
+                  "niri"
+                  "keepassxc"
+                  "bitwarden"
+                ]).services.gnome.gnome-keyring.enable;
+            };
+            expected = {
+              unlocks = true;
+              startsDaemon = true;
+              keepassxcKeyring = false;
+              both = false;
+              keepassxcStarts = true;
+            };
+          };
         # the compositors don't collide: both are sessions, there is one log out
         testTwoCompositors = {
           expr = {

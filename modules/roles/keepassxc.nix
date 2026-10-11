@@ -11,6 +11,11 @@
 # program's settings. The commands you enter run with the system PATH. The databases are ordinary
 # files wherever you put them; only the program's own settings are kept across
 # reboots. Drop the package override once nixpkgs ships 2.8.
+#
+# It is also the system keyring (Secret Service): the role starts it with the
+# session and keeps gnome-keyring off, also on a host with the bitwarden role.
+# Enable "Secret Service Integration" in the program's settings and pick the
+# database group it exposes.
 { self, ... }:
 {
   flake.modules.nixos.keepassxc =
@@ -54,11 +59,16 @@
     in
     {
       imports = with self.modules.nixos; [
+        desktop
         persist
         browser-extensions
       ];
 
       environment.systemPackages = [ keepassxc ];
+
+      desktop.startup = [ (lib.getExe keepassxc) ];
+      # one owner of org.freedesktop.secrets, also over the bitwarden role
+      services.gnome.gnome-keyring.enable = false;
 
       # KeePassXC-Browser, and the manifest the package ships for it
       browser.extensions."keepassxc-browser@keepassxc.org" = "keepassxc-browser";

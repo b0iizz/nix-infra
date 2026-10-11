@@ -36,7 +36,7 @@ withInputs
           "alacritty"
           "office"
           "gaming"
-          "keepassxc"
+          "bitwarden"
         ];
 
         modules = [

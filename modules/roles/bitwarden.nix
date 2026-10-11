@@ -3,11 +3,16 @@
 # The vault lives on the server; only the login and the local cache are kept
 # across reboots.
 #
+# Bitwarden only uses a Secret Service, it cannot be one, so the role brings
+# gnome-keyring as the system keyring. The greeter unlocks it with the login
+# password (modules/wrappers/quickshell/greeter.nix); its keyrings are kept.
+# With the keepassxc role on the same host, KeePassXC is the keyring instead.
+#
 #   roles = [ "workstation" "bitwarden" ];
 { self, ... }:
 {
   flake.modules.nixos.bitwarden =
-    { pkgs, ... }:
+    { lib, pkgs, ... }:
     {
       imports = with self.modules.nixos; [
         persist
@@ -19,6 +24,15 @@
 
       environment.systemPackages = [ pkgs.bitwarden-desktop ];
 
-      persist.home.directories = [ ".config/Bitwarden" ];
+      # mkDefault: the keepassxc role turns it off
+      services.gnome.gnome-keyring.enable = lib.mkDefault true;
+
+      persist.home.directories = [
+        ".config/Bitwarden"
+        {
+          directory = ".local/share/keyrings";
+          mode = "0700";
+        }
+      ];
     };
 }

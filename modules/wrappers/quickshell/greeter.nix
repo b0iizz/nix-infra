@@ -128,6 +128,10 @@ in
       security.pam.services.quickshell-greeter-auth.rules.auth.fprintd.order =
         config.security.pam.services.quickshell-greeter-auth.rules.auth.unix.order + 10;
       security.pam.services.greetd.rules.auth.login.modulePath = lib.mkForce "quickshell-greeter-auth";
+      # unlock the keyring with the login password, as `login` does
+      # ponytail: a fingerprint login gives no password, so the keyring stays locked until it asks
+      security.pam.services.quickshell-greeter-auth.enableGnomeKeyring =
+        config.services.gnome.gnome-keyring.enable;
 
       assertions = [
         {
