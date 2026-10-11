@@ -68,14 +68,17 @@
         }
       );
 
-      # works for any compositor: logind ends the session and with it the compositor
+      # works for any compositor: logind ends the session and with it the
+      # compositor. niri runs as a user unit outside the session, so stop it
+      # first through the target it binds to, or the next niri login finds it
+      # still running. If that kills this shell, niri-session ends the session.
       desktop.power.actions.logout = lib.mkIf (config.desktop.sessions != { }) (
         lib.mkDefault {
           name = "Log out";
           exec = [
             "sh"
             "-c"
-            ''loginctl terminate-session "$XDG_SESSION_ID"''
+            ''systemctl --user stop graphical-session.target; loginctl terminate-session "$XDG_SESSION_ID"''
           ];
           order = 40;
           confirm = true;
