@@ -44,6 +44,15 @@
           "anni"
         ];
         copyparty.usernames = true;
+        # SFTP only through the encrypted hub tunnel (modules/hosts/phoebe),
+        # with SSH keys: sftp -P 3922 joni@10.10.0.55:/video (start in a
+        # folder: only admin may list `/` over SFTP)
+        copyparty.sftp.addresses = config.wireguard.resolved.hub.members.atlas.addresses;
+        # nobody can log in yet; a plain key per person (ssh-keygen -t ed25519):
+        # copyparty.sftp.keys.joni = [ "ssh-ed25519 AAAA..." ];
+        networking.firewall.interfaces.${config.wireguard.resolved.hub.interface}.allowedTCPPorts = [
+          3922
+        ];
         copyparty.volumes = {
           "/" = {
             path = "/data/share";

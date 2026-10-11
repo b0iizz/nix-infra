@@ -17,6 +17,13 @@
 #   copyparty.groups.family = [ "alice" "bob" ];   # grant to "@family"
 #   copyparty.homes = "/data/homes";   # /home/<account>, for its owner only
 #   copyparty.usernames = true;        # log in with name and password
+#   copyparty.sftp.addresses = [ "10.10.0.10" ];   # SFTP on port 3922
+#   copyparty.sftp.keys.alice = [ "ssh-ed25519 AAAA..." ];
+#
+# WebDAV is the website's address itself (mount it as a network drive);
+# WebDAV clients always have to log in. SFTP takes SSH keys only, no
+# passwords; the host opens its port where it should be reachable. No SMB:
+# copyparty's is unencrypted and does not work with `usernames`.
 #
 # A volume at a deeper URL takes over that folder from its parent: its
 # access list is the only one that counts there. Permission letters, flags:
@@ -65,6 +72,8 @@ withInputs
           secretOf = name: "copyparty-${config.host-context.hostName}-${name}";
           # it ends up in the stylesheet
           hexColour = types.strMatching "#[0-9a-fA-F]{6}";
+          sftpPort = 3922;
+          sftp = cfg.sftp.addresses != [ ];
           # who an access list may name
           grantee =
             a:
@@ -170,6 +179,28 @@ withInputs
 
             usernames = lib.mkEnableOption "login with account name and password, instead of the password alone";
 
+            sftp = {
+              addresses = mkOption {
+                type = types.listOf types.str;
+                default = [ ];
+                example = [ "10.10.0.10" ];
+                description = ''
+                  Addresses the SFTP server listens on, port ${toString sftpPort},
+                  login with SSH keys only. Empty: no SFTP. Opening the
+                  firewall is the host's.
+                '';
+              };
+              keys = mkOption {
+                type = types.attrsOf (types.listOf types.str);
+                default = { };
+                example.alice = [ "ssh-ed25519 AAAAC3Nz... alice@laptop" ];
+                description = ''
+                  SSH public keys per account. Plain keys only (ed25519, ecdsa,
+                  rsa): the SFTP server cannot check FIDO2 `sk-` keys.
+                '';
+              };
+            };
+
             accent = {
               light = mkOption {
                 type = hexColour;
@@ -208,7 +239,11 @@ withInputs
               ++ lib.mapAttrsToList (g: members: {
                 assertion = lib.all (a: lib.elem a cfg.accounts) members;
                 message = "copyparty: group ${g} lists an account missing from `copyparty.accounts`";
-              }) cfg.groups;
+              }) cfg.groups
+              ++ lib.mapAttrsToList (a: keys: {
+                assertion = lib.elem a cfg.accounts && !lib.any (lib.hasPrefix "sk-") keys;
+                message = "copyparty: sftp.keys.${a}: not an account in `copyparty.accounts`, or a FIDO2 `sk-` key the SFTP server cannot check";
+              }) cfg.sftp.keys;
 
             age.secrets = lib.genAttrs (map secretOf cfg.accounts) (_: {
               owner = svc.user;
@@ -245,8 +280,28 @@ withInputs
                 # journal (the 📟 box, ?smsg): read the form as a GET instead
                 urlform = "get";
                 smsg = "";
+                # WebDAV clients always log in: Windows and davfs2 never do
+                # by themselves once a folder is world-readable, and then
+                # cannot write
+                dav-auth = true;
               }
-              // lib.optionalAttrs cfg.usernames { usernames = true; };
+              // lib.optionalAttrs cfg.usernames { usernames = true; }
+              // lib.optionalAttrs sftp {
+                sftp = sftpPort;
+                sftp-i = cfg.sftp.addresses;
+              };
+              # nixpkgs builds it without the SFTP server's library
+              package = lib.mkIf sftp (pkgs.copyparty.override { extraPythonPackages = p: [ p.paramiko ]; });
+              # one line per key, which `settings` cannot repeat; "account type
+              # base64", the key's comment dropped
+              globalExtraConfig = lib.concatStrings (
+                lib.mapAttrsToList (
+                  a: keys:
+                  lib.concatMapStrings (
+                    k: "sftp-key: ${a} ${lib.concatStringsSep " " (lib.take 2 (lib.splitString " " k))}\n"
+                  ) keys
+                ) cfg.sftp.keys
+              );
               accounts = lib.genAttrs cfg.accounts (name: {
                 passwordFile = config.age.secrets.${secretOf name}.path;
               });
@@ -276,10 +331,23 @@ withInputs
               subdomain = lib.mkDefault "files";
               inherit port;
               maxBodySize = lib.mkDefault "0"; # uploads of any size
+              # stream uploads to the origin: a WebDAV PUT is one body, which
+              # nginx would otherwise write to the gateway's disk first
+              nginx.locationConfig = "proxy_request_buffering off;";
             };
 
-            # the index of the volumes: rebuilding it hashes every file again
-            persist.directories = [ "/var/cache/copyparty" ];
+            persist.directories = [
+              # the index of the volumes: rebuilding it hashes every file again
+              "/var/cache/copyparty"
+              # salts, certificates and the SFTP host keys (XDG_CONFIG_HOME
+              # of the service): a new host key every boot alarms every client
+              {
+                directory = "/var/lib/copyparty";
+                user = svc.user;
+                group = svc.group;
+                mode = "0700";
+              }
+            ];
           };
         };
     }
