@@ -1,4 +1,4 @@
-// Bar item: wifi icon and signal strength; right click opens WifiMenu. Only
+// Bar item: wifi icon and signal strength; click opens WifiMenu. Only
 // on hosts with a wifi interface (modules/desktop/widgets.nix).
 import QtQuick
 import Quickshell
@@ -18,7 +18,7 @@ Text {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: Quickshell.execDetached(["quickshell", "ipc", "call", "wifimenu", "toggle"])
     }
 }

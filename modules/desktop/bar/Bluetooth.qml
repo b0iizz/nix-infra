@@ -1,6 +1,5 @@
-// Bar item: bluetooth icon, colored by state; left click
-// switches the adapter, right click opens BluetoothMenu. Only on hosts with a
-// bluetooth controller (modules/desktop/widgets.nix).
+// Bar item: bluetooth icon, colored by state; click opens BluetoothMenu, double
+// click switches the adapter. Only on hosts with a bluetooth controller (modules/desktop/widgets.nix).
 import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
@@ -16,13 +15,22 @@ Text {
     font.family: Theme.fontMonospace
     font.pointSize: Theme.sizeDesktop
 
+    // A click opens a full screen menu that closes on the next click, so the
+    // left one waits to see whether it is the first of a double click.
+    Timer {
+        id: openMenu
+
+        interval: Qt.styleHints.mouseDoubleClickInterval
+        onTriggered: Quickshell.execDetached(["quickshell", "ipc", "call", "bluetoothmenu", "toggle"])
+    }
+
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: e => {
-            if (e.button === Qt.RightButton)
-                Quickshell.execDetached(["quickshell", "ipc", "call", "bluetoothmenu", "toggle"]);
-            else
+        onClicked: e => e.button === Qt.RightButton ? openMenu.triggered() : openMenu.restart()
+        onDoubleClicked: e => {
+            openMenu.stop();
+            if (e.button === Qt.LeftButton)
                 adapter.enabled = !adapter.enabled;
         }
     }

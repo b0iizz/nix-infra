@@ -1,5 +1,5 @@
-// Bar item: whether any connection is up, and a lock while a VPN is; right
-// click opens NetworkMenu. NetworkManager's VPNs and WireGuard interfaces
+// Bar item: whether any connection is up, and a lock while a VPN is; click
+// opens NetworkMenu. NetworkManager's VPNs and WireGuard interfaces
 // count; Quickshell.Networking doesn't know either, so they are polled.
 import QtQuick
 import Quickshell
@@ -20,7 +20,7 @@ Text {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: Quickshell.execDetached(["quickshell", "ipc", "call", "networkmenu", "toggle"])
     }
 

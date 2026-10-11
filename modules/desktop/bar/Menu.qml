@@ -1,6 +1,6 @@
 // Frame of the menus (network, wifi, bluetooth, drives, power, wallpaper): a
 // box in the middle of the screen, opened with `quickshell ipc call <target>
-// toggle` (the bar item's right click) and closed with Escape or a click next
+// toggle` (the bar item's click) and closed with Escape or a click next
 // to it. The child is its content and exists only while the menu is open.
 import QtQuick
 import Quickshell

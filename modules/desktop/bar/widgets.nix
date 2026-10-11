@@ -16,7 +16,7 @@
       report = (config.host-context or { }).facter.report or null;
       facter = self.lib.facter;
       items = config.desktop.bar.items;
-      # the widgets with a right click menu
+      # the widgets with a click menu
       menus = [
         "Network"
         "Wifi"
@@ -66,7 +66,7 @@
         };
       };
 
-      # the right click menus; a widget that is off leaves its menu out as
+      # the click menus; a widget that is off leaves its menu out as
       # well. Their frame is also the power menu's and the wallpaper picker's.
       desktop.components = {
         Menu.qml = ./Menu.qml;
