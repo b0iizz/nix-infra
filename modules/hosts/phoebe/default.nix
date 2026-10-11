@@ -7,6 +7,8 @@
 #   DNS-01 through Cloudflare, records not proxied) and reverse proxies what
 #   origins `publicProxy.expose`, e.g. nas.grebes.net for copyparty on atlas.
 # - Keeps the Cloudflare records of all this up to date.
+# - Bans, rate limits and filters forwarding as the `public-facing` role
+#   (modules/roles/public-facing.nix).
 #
 # The publicProxy and wireguard settings are for the whole flake; see
 # modules/public-proxy/module.nix and modules/wireguard.nix. Secrets (agenix
@@ -71,7 +73,10 @@ in
   registry.hosts.phoebe = {
     path = ./.;
     stateVersion = "26.11";
-    roles = [ "disko-root-ext4" ];
+    roles = [
+      "disko-root-ext4"
+      "public-facing"
+    ];
     deploy.targetHost = address.ipv4;
     provision.targetUser = "root";
     provision.targetHost = address.ipv4;

@@ -63,6 +63,8 @@
         publicProxy.expose.copyparty = {
           subdomain = "nas";
           zone = "grebes.net";
+          # per request; bounds what a stolen login can fill in one go
+          maxBodySize = "50G";
         };
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
