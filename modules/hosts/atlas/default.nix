@@ -137,6 +137,16 @@
         {
           services.minecraft-servers.servers.survival = {
             enable = true;
+            serverProperties = {
+              white-list = true;
+              difficulty = "hard";
+              enforce-whitelist = true;
+              gamemode = "survival";
+              max-players = 6;
+              motd = "mc.greb.es minecraft server";
+              pause-when-empty-seconds = 0;
+              spawn-protection = 0;
+            };
             # nix-minecraft's Fabric wrapper runs nixpkgs' default Java (21);
             # 26.3 needs the one its vanilla server declares (25)
             package = pkgs.fabricServers.fabric-26_3.override {
