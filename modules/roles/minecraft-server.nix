@@ -23,7 +23,9 @@
 # Server `<name>` is at `<name>.mc.<defaultZone>`, the SRV record carries the
 # port, so players type the name alone. Change it with
 # `publicProxy.expose.minecraft-<name>`. Newer releases: `nix flake update
-# nix-minecraft`. Console: `sudo tmux -S /run/minecraft/<name>.sock attach`.
+# nix-minecraft`. Console: `sudo tmux -S /run/minecraft/<name>.sock attach`,
+# from another machine `ssh -t <host> sudo tmux ...` (tmux needs the tty);
+# leave with Ctrl-b d, since `stop` or Ctrl-c stops the server.
 #
 # The host also has to be in `publicProxy.origins` (see
 # modules/public-proxy/module.nix). The role accepts Mojang's EULA
@@ -40,7 +42,12 @@ withInputs
     { inputs, self, ... }:
     {
       flake.modules.nixos.minecraft-server =
-        { config, lib, pkgs, ... }:
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
         let
           svc = config.services.minecraft-servers;
         in
@@ -50,6 +57,8 @@ withInputs
             self.modules.nixos.persist
           ];
 
+          # for the console: the servers run in the module's tmux, the same
+          # `pkgs.tmux`, which nothing else puts on PATH
           environment.systemPackages = [ pkgs.tmux ];
 
           # the servers are unfreeRedistributable
