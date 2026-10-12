@@ -40,7 +40,7 @@ withInputs
     { inputs, self, ... }:
     {
       flake.modules.nixos.minecraft-server =
-        { config, lib, ... }:
+        { config, lib, pkgs, ... }:
         let
           svc = config.services.minecraft-servers;
         in
@@ -49,6 +49,8 @@ withInputs
             inputs.nix-minecraft.nixosModules.minecraft-servers
             self.modules.nixos.persist
           ];
+
+          environment.systemPackages = [ pkgs.tmux ];
 
           # the servers are unfreeRedistributable
           nixpkgs.config.allowUnfree = lib.mkDefault true;
