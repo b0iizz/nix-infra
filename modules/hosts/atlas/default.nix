@@ -100,7 +100,19 @@
 
         # newest vanilla at mc.greb.es, port 25565; more servers (modded too)
         # go next to it, see modules/roles/minecraft-server.nix
-        services.minecraft-servers.servers.vanilla.enable = true;
+        services.minecraft-servers.servers.vanilla = {
+	  enable = true;
+          serverProperties = {
+            white-list = true;
+            difficulty = "hard";
+            enforce-whitelist = true;
+            gamemode = "survival";
+            max-players = 6;
+            motd = "mc.greb.es minecraft server";
+            pause-when-empty-seconds = 0;
+            spawn-protection = 0;
+          };
+        };
         publicProxy.expose.minecraft-vanilla.subdomain = "mc";
 
         # 8 GiB of RAM for Minecraft and Jellyfin: a 24 GiB swap partition
