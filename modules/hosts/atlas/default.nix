@@ -164,6 +164,43 @@
               (modrinth "r0v8vy1s" "nSBWPz6x" "alternate-current-mc26.3-1.9.0.jar"
                 "347fa8d0338a7e113c0cde70306d05037dbf9fc1e33c476159b4f5cf7b4fce8d3798d820ebf0e0dedd8450417802cb3a030bdcbecaf509961a83b2e43a469ad5"
               )
+              (modrinth "fQEb0iXm" "UugdIYJw" "krypton-0.3.2.jar"
+                "d1d57ebd41395b75b01f130cd9503eb8d208212424a399ff9f367f50be8fbc1c6472442b33c686e777c3148f6a609520e8fb732c755157c358cb207fd4d1123a"
+              )
+              (modrinth "2ecVyZ49" "kzLBJQLn" "Ksyxis-1.4.6.jar"
+                "1571cd9b15b6733002dd164beab4ad1022fab2c904414b39db6fb609a41c48cca394f1751e5634ebc555795d9bd9dba48c2c280c152d9e0f570795d47a91c1d5"
+              )
+              (modrinth "Wnxd13zP" "J4I1wxJZ" "Clumps-fabric-26.3-26.3.2.jar"
+                "8c166ae97e1999d0f213d0a181d6ef87b99648016c92c9aa1414d2c2e24364b12549569cd7e247a3d675df703ae6a8a88fc175d3f527818c710578408508c8ab"
+              )
+            ];
+            # Half of atlas's 8 GiB, fixed so G1 never resizes the heap; the
+            # rest is for the system, copyparty and Jellyfin. Aikar's G1 flags
+            # (https://docs.papermc.io/paper/aikars-flags), tuned for heaps
+            # under 12 GiB; compact object headers (Java 25) cut heap use.
+            jvmOpts = [
+              "-Xms4G"
+              "-Xmx4G"
+              "-XX:+UseG1GC"
+              "-XX:+ParallelRefProcEnabled"
+              "-XX:MaxGCPauseMillis=200"
+              "-XX:+UnlockExperimentalVMOptions"
+              "-XX:+DisableExplicitGC"
+              "-XX:G1NewSizePercent=30"
+              "-XX:G1MaxNewSizePercent=40"
+              "-XX:G1HeapRegionSize=8M"
+              "-XX:G1ReservePercent=20"
+              "-XX:G1HeapWastePercent=5"
+              "-XX:G1MixedGCCountTarget=4"
+              "-XX:InitiatingHeapOccupancyPercent=15"
+              "-XX:G1MixedGCLiveThresholdPercent=90"
+              "-XX:G1RSetUpdatingPauseTimePercent=5"
+              "-XX:SurvivorRatio=32"
+              "-XX:MaxTenuringThreshold=1"
+              "-XX:+PerfDisableSharedMem"
+              "-XX:+UseCompactObjectHeaders"
+              # the kernel's THP mode is madvise, so Java has to ask for them
+              "-XX:+UseTransparentHugePages"
             ];
           };
           publicProxy.expose.minecraft-survival.subdomain = "mc";
