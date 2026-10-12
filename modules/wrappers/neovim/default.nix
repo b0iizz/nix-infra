@@ -32,9 +32,11 @@
 #                      }
 #
 # Every server is enabled; one whose command isn't on PATH stays off (noted in
-# :LspLog). Completion is Neovim's own, triggered by the server (CTRL-Y
-# accepts); a completion plugin replaces the LspAttach block in init.lua.
-# Keymaps and diagnostics are Neovim's defaults (:help lsp-defaults).
+# :LspLog). The servers this repo edits are configured in languages.nix.
+# Completion is blink.cmp (`settings.plugins.blink-cmp`): servers, paths,
+# buffer words and friendly-snippets' snippets, with its default keymap
+# (CTRL-Y accepts). LSP keymaps and diagnostics are Neovim's defaults
+# (:help lsp-defaults).
 #
 # The colors come from `passthru.theme` (theme.nix) through base16-nvim, as
 # `settings.plugins.base16-nvim`. Groups drawn in base00 get no background, so
@@ -56,17 +58,21 @@ let
         plugins = _: {
           # the servers' default configs (lsp/*.lua)
           nvim-lspconfig.package = pkgs.vimPlugins.nvim-lspconfig;
-        };
-        lsp = _: {
-          nixd = {
-            package = pkgs.nixd;
-            settings.nixd = {
-              nixpkgs.expr = "import ${pkgs.path} { }";
-              # the same nixfmt as `nix fmt` (modules/formatter.nix)
-              formatting.command = [ (lib.getExe pkgs.nixfmt) ];
-            };
+          # eager: it gives every server its capabilities when it loads
+          blink-cmp = {
+            package = pkgs.vimPlugins.blink-cmp;
+            config = ''
+              require("blink.cmp").setup({
+                keymap = { preset = "default" },
+                completion = { documentation = { auto_show = true } },
+                signature = { enabled = true },
+              })
+            '';
           };
+          # found on the runtimepath by blink's snippet source
+          friendly-snippets.package = pkgs.vimPlugins.friendly-snippets;
         };
+        lsp = _: { };
       };
       passthru.persist.directories = old: old ++ [ ".local/state/nvim" ];
       passthru.wrapper.exes = _: [ "nvim" ];
@@ -157,16 +163,6 @@ let
             vim.lsp.config(name, config)
             vim.lsp.enable(name)
           end
-
-          vim.opt.completeopt:append({ "menuone", "noselect", "popup" })
-          vim.api.nvim_create_autocmd("LspAttach", {
-            callback = function(args)
-              local client = vim.lsp.get_client_by_id(args.data.client_id)
-              if client and client:supports_method("textDocument/completion") then
-                vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
-              end
-            end,
-          })
         '';
 
         passthru.wrapper.flags.__append = [ "-u ${final.passthru.config.file."init.lua"}" ];
@@ -184,8 +180,8 @@ in
       wrappers.neovim = w.program (program pkgs);
 
       # A lazy plugin loads on its trigger, an eager one's config can require
-      # its dependencies, the theme colors reach the highlight groups, and nixd
-      # attaches to a .nix file with completion.
+      # its dependencies, the theme colors reach the highlight groups, the
+      # servers of languages.nix attach, and blink offers nix snippets.
       checks.neovim =
         let
           # sets vim.g.<name> when loaded, and has a command `Probe`
@@ -201,6 +197,8 @@ in
             };
           nvim = config.packages.neovim.extend {
             passthru.theme.colors.base05 = _: "123456";
+            # the flake's options can't be evaluated in the sandbox
+            passthru.settings.lsp.nixd.settings.nixd.options = _: { };
             passthru.settings.plugins = {
               probe = _: {
                 package = probe "probe";
@@ -228,7 +226,16 @@ in
             };
           };
           test = pkgs.writeText "test.lua" ''
-            local ok, err = pcall(function()
+            local function step(f)
+              local ok, err = pcall(f)
+              if not ok then
+                io.stderr:write(tostring(err) .. "\n")
+                vim.cmd("cquit 1")
+              end
+              return ok
+            end
+
+            local ok = step(function()
               assert(vim.g.probe == nil, "lazy plugin loaded at startup")
               vim.cmd("Probe")
               assert(vim.g.probe and vim.g.probe_after, "lazy plugin or its config not loaded")
@@ -239,24 +246,47 @@ in
               local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
               assert(normal.fg == 0x123456, "Normal fg is not base05")
               assert(normal.bg == nil, "Normal has a background")
-              vim.cmd.edit(os.getenv("TMPDIR") .. "/test.nix")
-              assert(vim.wait(20000, function()
-                return #vim.lsp.get_clients({ name = "nixd", bufnr = 0 }) > 0
-              end), "nixd did not attach")
-              -- vim.lsp.completion.enable's autocommands for the buffer
-              local group = "nvim.lsp.completion_" .. vim.api.nvim_get_current_buf()
-              assert(pcall(vim.api.nvim_get_autocmds, { group = group }), "LSP completion not enabled")
+              local function attaches(file, server)
+                vim.cmd.edit(os.getenv("TMPDIR") .. "/" .. file)
+                assert(vim.wait(20000, function()
+                  return #vim.lsp.get_clients({ name = server, bufnr = 0 }) > 0
+                end), server .. " did not attach")
+              end
+              attaches("test.md", "marksman")
+              attaches("test.nix", "nixd")
+              vim.o.showmode = false
             end)
-            if not ok then
-              io.stderr:write(tostring(err) .. "\n")
-              vim.cmd("cquit 1")
+
+            -- Type `let` and accept blink's snippet. Typed input is only read
+            -- by the main loop, hence nvim_input and the deferred checks.
+            if ok then
+              local cmp = require("blink.cmp")
+              vim.api.nvim_input("ilet")
+              vim.defer_fn(function()
+                step(function()
+                  local index
+                  for i, item in ipairs(cmp.get_items()) do
+                    if item.source_id == "snippets" and item.label == "let" then
+                      index = i
+                    end
+                  end
+                  assert(index, "blink's menu has no `let` snippet")
+                  cmp.accept({ index = index })
+                  vim.defer_fn(function()
+                    step(function()
+                      local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+                      assert(text:find("^let\n.*\nin"), "`let` expanded to " .. vim.inspect(text))
+                      vim.cmd("qall!")
+                    end)
+                  end, 1000)
+                end)
+              end, 3000)
             end
-            vim.cmd("qall!")
           '';
         in
         pkgs.runCommand "check-neovim" { } ''
           export HOME=$TMPDIR
-          ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err || touch failed
+          timeout 120 ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err || touch failed
           cat err
           [ ! -e failed ]
           # A startup error (a failed `config`) changes neither the exit code

@@ -90,7 +90,7 @@ Audits and reviews: use the `ponytail-audit` and `ponytail-review` skills. Witho
 - LUKS in a VM test: give the VM 4 GiB, since argon2 takes 1 GiB. Answer with `wait_for_console_text("Please enter passphrase")` and `send_console`. Root and swap are logical volumes in one LUKS volume, so one prompt (systemd initrd, the default). `age: no identity matched` lines are expected: the throwaway host key cannot decrypt the host's secrets.
 - `nixos-anywhere --extra-files DIR` copies all of DIR onto `/` of the new system. Pass only what belongs there (`$extra` in `provision commit`), never the scratch directory.
 - `cmd | tail; echo $?` reports `tail`: use `${PIPESTATUS[0]}`. Under `pipefail`, a `grep -v` that prints nothing fails the pipeline.
-- Harmless noise: `Git tree ... is dirty`, `SQLite database ... is busy`, and `unknown flake output` for `modules`, `deployData`, `provisionData`, `hostKeysData`, `publicProxyData`.
+- Harmless noise: `Git tree ... is dirty`, `SQLite database ... is busy`, and `unknown flake output` for `modules`, `deployData`, `provisionData`, `hostKeysData`, `publicProxyData`, and for `debug` and `allSystems` (flake-parts' `debug = true`, which nixd's option completion needs: `modules/wrappers/neovim/languages.nix`).
 - Claude Code worktree sessions (seen 2026-10-09, may change) refused `nix eval` and commands with a runtime variable such as `$PWD` or `$CLAUDE_JOB_DIR` in `nix`, `git` or `sed` arguments. Do what the refusal says: split the command into plain, separate calls with literal absolute paths. Query values by building a file:
 
 ```nix
