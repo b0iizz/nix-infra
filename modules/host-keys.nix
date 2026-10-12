@@ -12,7 +12,7 @@ let
   hostsData = lib.mapAttrs (_name: host: {
     age = relPath host.hostkey.privateKeyFile;
     pub = relPath (host.path + "/host.pub");
-    target = host.deploy.targetHost;
+    targets = host.deploy.targetHosts;
     user = host.deploy.targetUser;
     sshOpts = host.deploy.sshOpts;
   }) (lib.filterAttrs (_: host: host.enable) rcfg.hosts);
@@ -133,8 +133,8 @@ in
             FLAKE_ROOT  repository root (default: git toplevel or cwd)
 
           Without --local/--target, deploy and verify run locally if <host>
-          is this machine's hostname, otherwise over ssh to the registry's
-          deploy.targetHost.
+          is this machine's hostname, otherwise over ssh to the first of the
+          registry's deploy.targetHosts that answers with the host key.
 
           deploy only talks to the machine holding the last committed key
           (git HEAD), so the private key can't go to an impostor. Without a
@@ -249,24 +249,25 @@ in
 
           # -- deploy / verify ---------------------------------------------
 
-          # Sets $mode (local|ssh) and $dest (user@addr) from the options.
+          # Sets $mode (local|ssh) and the $targets to pick_dest from.
           mode=
           dest=
+          targets=()
           resolve_target() {
             local h=$1 force_local=$2 target=$3
             if [ "$force_local" = 1 ]; then
               mode=local
               return
             fi
+            targets=("$target")
             if [ -z "$target" ]; then
               if [ "$h" = "$(uname -n)" ]; then
                 mode=local
                 return
               fi
-              target=$(field "$h" target)
-              [ -n "$target" ] || die "$h: no deploy.targetHost and not this machine; pass --target"
+              mapfile -t targets < <(jq -r --arg h "$h" '.[$h].targets[]' <<<"$data")
+              [ "''${#targets[@]}" -gt 0 ] || die "$h: no deploy.targetHosts and not this machine; pass --target"
             fi
-            dest=$(to_dest "$(field "$h" user)" "$target")
             mode=ssh
           }
 
@@ -311,7 +312,8 @@ in
             else
               mk_tmp
               if committed_pub "$h"; then pin=$tmp/$h.committed.pub; fi
-              ssh_setup "$h" "$dest" "$pin"
+              ssh_setup "$h" "$pin"
+              pick_dest "$h" "$(field "$h" user)" "''${targets[@]}"
               if [ "''${dest%@*}" != root ]; then sudo="sudo -n"; fi
               info "$h: installing key on $dest"
               # shellcheck disable=SC2029
@@ -332,15 +334,16 @@ in
             parse_target_opts "$@"
             set -- "''${rest[@]}"
             need_host "''${1:-}"
-            local h=$1 want got opts
+            local h=$1 want got
             want=$(read_pub "$h" | awk '{ print $2 }')
             resolve_target "$h" "$force_local" "$target"
             if [ "$mode" = local ]; then
               got=$(awk '{ print $2 }' "$key_path.pub")
             else
-              mapfile -t opts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
+              mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
+              pick_dest "$h" "$(field "$h" user)" "''${targets[@]}"
               # shellcheck disable=SC2029
-              got=$(ssh "''${opts[@]}" "$dest" cat "$key_path.pub" | awk '{ print $2 }')
+              got=$(ssh "''${sshopts[@]}" "$dest" cat "$key_path.pub" | awk '{ print $2 }')
             fi
             if [ "$got" = "$want" ]; then
               info "$h: OK, machine has the registered key"
@@ -438,7 +441,7 @@ in
                 half) state="HALF A PAIR, repair before deploying" ;;
                 none) state="none (run: host-keys generate $h)" ;;
               esac
-              target=$(field "$h" target)
+              target=$(jq -r --arg h "$h" '.[$h].targets | join(",")' <<<"$data")
               printf '%-24s %-52s %s\n' "$h" "$state" "''${target:-local only}"
             done < <(all_hosts)
           }

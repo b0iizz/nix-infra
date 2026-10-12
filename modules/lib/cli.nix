@@ -58,7 +58,7 @@ let
       trap cleanup EXIT
       mk_tmp() { [ -n "$tmp" ] || tmp=$(mktemp -d -p "''${XDG_RUNTIME_DIR:-/tmp}" ${name}.XXXXXX); }
 
-      # ssh_setup <host> <user@addr> [host.pub]: sets $sshopts (array) and
+      # ssh_setup <host> [host.pub]: sets $sshopts (array) and
       # exports NIX_SSHOPTS. With a public key file, ssh trusts exactly that
       # key, from a known_hosts file generated from it; without one it falls
       # back to accept-new. A known_hosts line is `<host> <type> <key>`: the
@@ -68,7 +68,7 @@ let
       # the first one wins); cleanup closes it.
       sshopts=()
       ssh_setup() {
-        local h=$1 pubfile=''${3:-} kh type key
+        local h=$1 pubfile=''${2:-} kh type key
         mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
         mk_tmp
         sshopts+=(-o ControlMaster=auto -o "ControlPath=$tmp/%C" -o ControlPersist=60)
@@ -84,6 +84,25 @@ let
           sshopts+=(-o StrictHostKeyChecking=accept-new)
         fi
         export NIX_SSHOPTS="''${sshopts[*]}"
+      }
+
+      # pick_dest <host> <user> <target>...: sets $dest to the first user@target
+      # whose sshd answers with the key $sshopts expect (set them first). The
+      # probe stops before authentication, so it costs no FIDO2 touch.
+      # ponytail: reads OpenSSH's "Permission denied" wording; a probe that
+      # logs in is the upgrade if that ever changes.
+      pick_dest() {
+        local h=$1 user=$2 t out
+        shift 2
+        for t in "$@"; do
+          dest=$(to_dest "$user" "$t")
+          # ssh keeps the first value of an option, so these beat $sshopts.
+          out=$(ssh -o ControlPath=none -o PreferredAuthentications=none -o ConnectTimeout=5 \
+            -o LogLevel=ERROR "''${sshopts[@]}" "$dest" true 2>&1 </dev/null || true)
+          [[ $out != *"Permission denied"* ]] || return 0
+          info "$h: skipping $dest: ''${out##*$'\n'}"
+        done
+        die "$h: no target fits (tried: $*)"
       }
     '';
 

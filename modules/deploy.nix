@@ -11,7 +11,7 @@ let
   hostsData = lib.mapAttrs (_name: host: {
     # Committed ssh host public key; deploys pin it when present.
     pub = cli.relPath (host.path + "/host.pub");
-    target = host.deploy.targetHost;
+    targets = host.deploy.targetHosts;
     user = host.deploy.targetUser;
     sshOpts = host.deploy.sshOpts;
     buildOnTarget = host.deploy.buildOnTarget;
@@ -112,8 +112,10 @@ in
                                   implies --keep-going)
             -- args               passed on to nixos-rebuild (--show-trace ...)
 
-          A host without deploy.targetHost, or named like this machine, is
-          deployed locally. A target user other than root uses sudo.
+          A host without deploy.targetHosts, or named like this machine, is
+          deployed locally. Otherwise the first target whose sshd answers
+          with the host's key is used; with --target only that one. A target user
+          other than root uses sudo.
 
           Host keys: if the host has a committed host.pub, ssh only accepts
           exactly that key (known_hosts is generated from it). Without one it
@@ -197,18 +199,20 @@ in
 
           # -- one host ----------------------------------------------------
 
-          # Sets $dest (user@addr) or leaves it empty for a local deploy.
+          # Sets $dest (user@addr) and $sshopts, or leaves $dest empty for a
+          # local deploy.
           dest=
           resolve_target() {
-            local h=$1 t=$target
+            local h=$1 targets=("$target")
             dest=
             [ $force_local = 0 ] || return 0
-            if [ -z "$t" ]; then
+            if [ -z "$target" ]; then
               [ "$h" != "$(uname -n)" ] || return 0
-              t=$(field "$h" target)
-              [ -n "$t" ] || return 0
+              mapfile -t targets < <(jq -r --arg h "$h" '.[$h].targets[]' <<<"$data")
+              [ "''${#targets[@]}" -gt 0 ] || return 0
             fi
-            dest=$(to_dest "$(field "$h" user)" "$t")
+            ssh_setup "$h" "$root$(field "$h" pub)"
+            pick_dest "$h" "$(field "$h" user)" "''${targets[@]}"
           }
 
           # nixos-rebuild-ng renamed --use-remote-sudo to --sudo. Ask rather
@@ -220,7 +224,6 @@ in
           deploy_one() {
             local h=$1 action=$2 build_on_target flags=()
             flags=(--flake "$root#$h" --no-reexec)
-            resolve_target "$h"
 
             # `build` contacts nothing, so it skips the local/remote question.
             if [ "$action" = build ]; then
@@ -229,6 +232,7 @@ in
               return
             fi
 
+            resolve_target "$h"
             if [ -z "$dest" ]; then
               info "$h: $action (local)"
               # nixos-rebuild builds as you and only escalates to activate, so
@@ -241,7 +245,6 @@ in
               return
             fi
 
-            ssh_setup "$h" "$dest" "$root$(field "$h" pub)"
             flags+=(--target-host "$dest")
             [ "''${dest%@*}" = root ] || flags+=("$sudo_flag")
 
@@ -265,10 +268,7 @@ in
             info "$h: building"
             new=$(nix build --no-link --print-out-paths \
               "$root#nixosConfigurations.$h.config.system.build.toplevel" "''${rest[@]}")
-            if [ -n "$dest" ]; then
-              ssh_setup "$h" "$dest" "$root$(field "$h" pub)"
-              on=(ssh "''${sshopts[@]}" "$dest")
-            fi
+            [ -z "$dest" ] || on=(ssh "''${sshopts[@]}" "$dest")
             cur=$("''${on[@]}" readlink -f /run/current-system) ||
               die "$h: cannot read the running system"
             if [ "$cur" = "$new" ]; then
@@ -336,7 +336,7 @@ in
 
           cmd_list() {
             load_data
-            jq -r 'to_entries[] | [.key, (.value.target // "(local)"), .value.user,
+            jq -r 'to_entries[] | [.key, (.value.targets | join(",") | if . == "" then "(local)" else . end), .value.user,
                    (.value.groups | map("@" + .) | join(","))] | @tsv' <<<"$data" |
               column -t -s "$(printf '\t')"
           }
@@ -360,5 +360,46 @@ in
     {
       packages.deploy-cli = deploy;
       make-shells.default = cli.shellFor deploy;
+
+      # Target picking: `deploy plan` against stub nix and ssh, where only
+      # `good` answers with the host's key.
+      checks.deploy-targets =
+        let
+          stubbed = deploy.withRuntimeInputs [
+            (pkgs.writeShellScriptBin "nix" ''
+              case $1 in
+                eval) echo '{"h":{"pub":"/h.pub","targets":["down","wrongkey","good","later"],"user":"root","sshOpts":[],"buildOnTarget":false,"groups":[]}}' ;;
+                build) echo /fake ;;
+              esac
+            '')
+            (pkgs.writeShellScriptBin "ssh" ''
+              case " $* " in
+                *PreferredAuthentications=none*)
+                  dest=''${*: -2:1}
+                  echo "$dest" >>"$PROBES"
+                  case $dest in
+                    root@good) echo "$dest: Permission denied (publickey)." >&2 ;;
+                    root@wrongkey) echo "Host key verification failed." >&2 ;;
+                    *) echo "ssh: connect to host ''${dest#*@} port 22: Connection timed out" >&2 ;;
+                  esac
+                  exit 255
+                  ;;
+                *) echo /fake ;; # readlink -f /run/current-system: up to date
+              esac
+            '')
+          ];
+        in
+        pkgs.runCommand "check-deploy-targets" { } ''
+          export FLAKE_ROOT=$PWD XDG_RUNTIME_DIR=$TMPDIR PROBES=$PWD/probes
+          echo "ssh-ed25519 AAAA" >h.pub
+          probes() { rm -f "$PROBES"; "$@"; tr '\n' ' ' <"$PROBES"; }
+
+          [ "$(probes ${stubbed}/bin/deploy plan h)" = "root@down root@wrongkey root@good " ]
+          [ "$(probes ${stubbed}/bin/deploy plan h --target good)" = "root@good " ]
+          rm "$PROBES"
+          if ${stubbed}/bin/deploy plan h --target later; then exit 1; fi
+          [ "$(cat "$PROBES")" = root@later ]
+          touch $out
+        '';
     };
 }

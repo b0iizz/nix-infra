@@ -119,13 +119,15 @@ let
             default = [ ];
           };
 
-          targetHost = mkOption {
-            type = types.nullOr types.str;
-            default = null;
+          targetHosts = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
             description = ''
-              Hostname or address reachable over SSH from the operator.
+              Hostnames or addresses reachable over SSH from the operator,
+              in order of preference: `deploy` and `host-keys` take the first
+              whose sshd answers with the host's key.
 
-              `null` means this host is only ever deployed from itself:
+              `[ ]` means this host is only ever deployed from itself:
               In that case `deploy` runs `nixos-rebuild` locally with no
               `--target-host`.
             '';

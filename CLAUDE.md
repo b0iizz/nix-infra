@@ -25,10 +25,10 @@ A Nix flake for a small NixOS fleet: hosts, disk layouts, users, secrets, a Quic
 Re-check before relying on it:
 
 - Three hosts, all installed from this repo, so changing any `disko-layouts.*` means reinstalling that host:
-  - `prometheus` (Framework 13, this laptop, `uname -n`): btrfs and swap as LVM volumes in one LUKS volume (`lsblk -f`). No `deploy.targetHost`, so `deploy` and `host-keys deploy` for it run locally, on the running system.
+  - `prometheus` (Framework 13, this laptop, `uname -n`): btrfs and swap as LVM volumes in one LUKS volume (`lsblk -f`). No `deploy.targetHosts`, so `deploy` and `host-keys deploy` for it run locally, on the running system.
   - `atlas` (home server, 192.168.178.10, no LUKS): copyparty on a RAID 1 at `/data`, published as nas.grebes.net through phoebe.
   - `phoebe` (IONOS VPS, 87.106.233.164, the only public address): TLS and reverse proxy for atlas (`modules/public-proxy/`, `edge` tunnel), Cloudflare DNS, the `public-facing` role.
-- WireGuard `hub` network (`modules/wireguard.nix`, defined in `modules/hosts/phoebe`): phoebe is the hub at wg.greb.es, atlas and prometheus are spokes. `deploy` reaches atlas and phoebe at their hub addresses; when the tunnel is down use `deploy --target <LAN or public address>`. Provisioning still uses the LAN and public addresses.
+- WireGuard `hub` network (`modules/wireguard.nix`, defined in `modules/hosts/phoebe`): phoebe is the hub at wg.greb.es, atlas and prometheus are spokes. `deploy` and `host-keys` try atlas and phoebe at their LAN or public address first, then at their hub address (`deploy.targetHosts`, the first sshd that answers with the host key wins); `--target` tries only that one. Provisioning uses the LAN and public addresses.
 - Admin access: one FIDO2 key (`ed25519-sk`) per admin and token of `secrets/master`, made by `agenix generate` (`modules/users.nix`), authorized for root and the admin on every host. agenix installs the key handles on the admin's `keyHosts` (prometheus) as `~/.ssh/id_ed25519_sk_<token>`. Each login needs a touch; the CLIs share one ssh connection per host and run (`ssh_setup` in `modules/lib/cli.nix`).
 - It is graphical: niri session (greeter default), quickshell, greeter in cage. The QML runs on hardware now; read the running shell's log with `quickshell log --pid $(pgrep -f 'quickshell --path')`.
 - `nix.settings.trusted-users` stays at its default (root only): a trusted user is root through the Nix daemon, which made the sudo password worthless. Nothing in the tools needs it; root on a target is always trusted.
@@ -40,7 +40,7 @@ Re-check before relying on it:
 ```sh
 nix flake check --no-build      # evaluates everything, 1-2 min: after every change
 nix build .#checks.x86_64-linux.lib   # or host-keys, desktop-roles, treefmt, check-flake-file,
-                                      # niri-config, sway-config, default-shell,
+                                      # deploy-targets, niri-config, sway-config, default-shell,
                                       # impermanence-rollback (a VM, as is a full flake check)
 nix build .#vm-test-prometheus  # installs the host in QEMU with the real provision CLI; minutes, needs /dev/kvm
 nix fmt                         # treefmt: nixfmt, prettier (also *.md), shfmt, taplo, qmlformat

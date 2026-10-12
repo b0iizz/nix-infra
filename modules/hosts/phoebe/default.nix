@@ -77,8 +77,11 @@ in
       "disko-root-ext4"
       "public-facing"
     ];
-    # through its own hub; `deploy --target 87.106.233.164` when the tunnel is down
-    deploy.targetHost = lib.head config.wireguard.resolved.hub.members.phoebe.addresses;
+    # its public address, else through its own hub
+    deploy.targetHosts = [
+      address.ipv4
+      (lib.head config.wireguard.resolved.hub.members.phoebe.addresses)
+    ];
     provision.targetUser = "root";
     provision.targetHost = address.ipv4;
 

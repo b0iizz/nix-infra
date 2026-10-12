@@ -20,10 +20,11 @@
       "copyparty"
       "minecraft-server"
     ];
-    # deployed through the hub (modules/hosts/phoebe), from anywhere; the LAN
-    # address below for a reinstall by kexec, or `deploy --target` when the
-    # tunnel is down
-    deploy.targetHost = lib.head config.wireguard.resolved.hub.members.atlas.addresses;
+    # the LAN when home, else through the hub (modules/hosts/phoebe)
+    deploy.targetHosts = [
+      "192.168.178.10"
+      (lib.head config.wireguard.resolved.hub.members.atlas.addresses)
+    ];
     provision.targetUser = "root";
     provision.targetHost = "192.168.178.10";
 
