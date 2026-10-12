@@ -63,6 +63,9 @@ in
     hub = "phoebe";
     ipv4 = "10.10.0.0/24";
     port = 51821;
+    # the laptop roams: on a carrier-grade NAT (2026-10-12) only ~1290-byte
+    # packets got through and ssh hung in key exchange; 1280 fits any path
+    mtu = 1280;
     members = {
       phoebe.endpoint = hubEndpoint;
       atlas = { };
