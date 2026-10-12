@@ -26,8 +26,9 @@
 # `settings.plugins.base16-nvim`. Groups drawn in base00 get no background, so
 # the terminal's (and its opacity) shows through.
 #
-# ponytail: lz.n has no `dependencies`. A plugin's own `dependencies` (plenary
-# for telescope) always load at startup, so don't give them a lazy spec too.
+# ponytail: lz.n has no `dependencies`. A plugin's own dependencies (vim
+# plugins, Lua modules like telescope's plenary) are always there from startup,
+# so don't give them a lazy spec too.
 { self, lib, ... }:
 let
   w = self.lib.wrappers;
@@ -76,9 +77,13 @@ let
 
         # a plugin's directory in the pack, which lz.n `packadd`s
         dirName = p: lib.getName p.package;
-        pack = pkgs.vimUtils.packDir {
-          wrapper.opt = [ pkgs.vimPlugins.lz-n ] ++ map (p: p.package) (lib.attrValues plugins);
-        };
+        packages = [ pkgs.vimPlugins.lz-n ] ++ map (p: p.package) (lib.attrValues plugins);
+        pack = pkgs.vimUtils.packDir { wrapper.opt = packages; };
+        # what nixpkgs' own wrapper adds for plugins built as Lua rocks
+        # (telescope's plenary) and for programs plugins run
+        lua = pkgs.neovim-unwrapped.lua;
+        luaEnv = lua.withPackages (_: lib.concatMap (p: p.requiredLuaModules or [ ]) packages);
+        runtimeDeps = lib.concatMap (p: p.runtimeDeps or [ ]) packages;
         specs = lib.mapAttrs' (
           _: p:
           lib.nameValuePair (dirName p) (
@@ -94,6 +99,8 @@ let
       in
       {
         passthru.files."init.lua" = _: ''
+          package.path = ${toLua { } (lua.pkgs.getLuaPath luaEnv)} .. ";" .. package.path
+          package.cpath = ${toLua { } (lua.pkgs.getLuaCPath luaEnv)} .. ";" .. package.cpath
           vim.opt.packpath:prepend(${toLua { } "${pack}"})
           vim.cmd.packadd("lz.n")
 
@@ -114,6 +121,9 @@ let
         '';
 
         passthru.wrapper.flags.__append = [ "-u ${final.passthru.config.file."init.lua"}" ];
+        passthru.wrapper.suffix = lib.optionalAttrs (runtimeDeps != [ ]) {
+          PATH = _: [ (lib.makeBinPath runtimeDeps) ];
+        };
       }
     )
   ];
@@ -159,7 +169,11 @@ in
               };
               telescope = _: {
                 package = pkgs.vimPlugins.telescope-nvim;
-                config = ''require("telescope").setup({ defaults = require("plenary.path") and {} })'';
+                config = ''
+                  require("plenary.path")
+                  require("telescope").setup({})
+                  vim.g.telescope_after = true
+                '';
               };
             };
           };
@@ -171,7 +185,10 @@ in
               assert(vim.g.keyprobe == nil, "key-triggered plugin loaded at startup")
               vim.api.nvim_feedkeys(vim.keycode("<leader>p"), "x", false)
               assert(vim.g.keyprobe and vim.g.keyprobe_rhs, "key-triggered plugin or its rhs not run")
-              assert(package.loaded["telescope"], "eager plugin not loaded")
+              assert(vim.g.telescope_after, "eager plugin's config, with its dependency, didn't run")
+              -- startup errors (lz.n reports failed hooks) go here, not to stderr
+              local messages = vim.api.nvim_exec2("messages", { output = true }).output
+              assert(not messages:find("Error") and not messages:find("Failed"), messages)
               local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
               assert(normal.fg == 0x123456, "Normal fg is not base05")
               assert(normal.bg == nil, "Normal has a background")
@@ -187,7 +204,8 @@ in
           export HOME=$TMPDIR
           ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err
           cat err
-          ! grep -q . err
+          # an error in init.lua doesn't change nvim's exit code, only stderr
+          [ ! -s err ]
           touch $out
         '';
     };
