@@ -22,6 +22,20 @@
 #     config = ''require("telescope").setup({})'';
 #   };
 #
+#   settings.lsp       server -> null (off) | {
+#                        package   the server, appended to PATH, so a project
+#                                  shell's own server wins (optional: without
+#                                  it the server must come from PATH)
+#                        ...       vim.lsp.Config fields (cmd, filetypes,
+#                                  settings, ...), merged over nvim-lspconfig's
+#                                  lsp/<server>.lua, so the name is lspconfig's
+#                      }
+#
+# Every server is enabled; one whose command isn't on PATH stays off (noted in
+# :LspLog). Completion is Neovim's own, triggered by the server (CTRL-Y
+# accepts); a completion plugin replaces the LspAttach block in init.lua.
+# Keymaps and diagnostics are Neovim's defaults (:help lsp-defaults).
+#
 # The colors come from `passthru.theme` (theme.nix) through base16-nvim, as
 # `settings.plugins.base16-nvim`. Groups drawn in base00 get no background, so
 # the terminal's (and its opacity) shows through.
@@ -39,7 +53,20 @@ let
     {
       passthru.settings = {
         init = _: "";
-        plugins = _: { };
+        plugins = _: {
+          # the servers' default configs (lsp/*.lua)
+          nvim-lspconfig.package = pkgs.vimPlugins.nvim-lspconfig;
+        };
+        lsp = _: {
+          nixd = {
+            package = pkgs.nixd;
+            settings.nixd = {
+              nixpkgs.expr = "import ${pkgs.path} { }";
+              # the same nixfmt as `nix fmt` (modules/formatter.nix)
+              formatting.command = [ (lib.getExe pkgs.nixfmt) ];
+            };
+          };
+        };
       };
       passthru.persist.directories = old: old ++ [ ".local/state/nvim" ];
       passthru.wrapper.exes = _: [ "nvim" ];
@@ -84,6 +111,9 @@ let
         lua = pkgs.neovim-unwrapped.lua;
         luaEnv = lua.withPackages (_: lib.concatMap (p: p.requiredLuaModules or [ ]) packages);
         runtimeDeps = lib.concatMap (p: p.runtimeDeps or [ ]) packages;
+
+        servers = lib.filterAttrs (_: v: v != null) s.lsp;
+        serverPackages = lib.filter (p: p != null) (map (v: v.package or null) (lib.attrValues servers));
         specs = lib.mapAttrs' (
           _: p:
           lib.nameValuePair (dirName p) (
@@ -118,11 +148,30 @@ let
             end
           end
           require("lz.n").load(vim.tbl_values(specs))
+
+          -- after the plugins: a server's config is resolved from the
+          -- runtimepath, where nvim-lspconfig must be by then
+          for name, config in pairs(${
+            toLua { } (lib.mapAttrs (_: v: removeAttrs v [ "package" ]) servers)
+          }) do
+            vim.lsp.config(name, config)
+            vim.lsp.enable(name)
+          end
+
+          vim.opt.completeopt:append({ "menuone", "noselect", "popup" })
+          vim.api.nvim_create_autocmd("LspAttach", {
+            callback = function(args)
+              local client = vim.lsp.get_client_by_id(args.data.client_id)
+              if client and client:supports_method("textDocument/completion") then
+                vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+              end
+            end,
+          })
         '';
 
         passthru.wrapper.flags.__append = [ "-u ${final.passthru.config.file."init.lua"}" ];
-        passthru.wrapper.suffix = lib.optionalAttrs (runtimeDeps != [ ]) {
-          PATH = _: [ (lib.makeBinPath runtimeDeps) ];
+        passthru.wrapper.suffix = lib.optionalAttrs (runtimeDeps ++ serverPackages != [ ]) {
+          PATH = _: [ (lib.makeBinPath (runtimeDeps ++ serverPackages)) ];
         };
       }
     )
@@ -135,7 +184,8 @@ in
       wrappers.neovim = w.program (program pkgs);
 
       # A lazy plugin loads on its trigger, an eager one's config can require
-      # its dependencies, and the theme colors reach the highlight groups.
+      # its dependencies, the theme colors reach the highlight groups, and nixd
+      # attaches to a .nix file with completion.
       checks.neovim =
         let
           # sets vim.g.<name> when loaded, and has a command `Probe`
@@ -192,6 +242,13 @@ in
               local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
               assert(normal.fg == 0x123456, "Normal fg is not base05")
               assert(normal.bg == nil, "Normal has a background")
+              vim.cmd.edit(os.getenv("TMPDIR") .. "/test.nix")
+              assert(vim.wait(20000, function()
+                return #vim.lsp.get_clients({ name = "nixd", bufnr = 0 }) > 0
+              end), "nixd did not attach")
+              -- vim.lsp.completion.enable's autocommands for the buffer
+              local group = "nvim.lsp.completion_" .. vim.api.nvim_get_current_buf()
+              assert(pcall(vim.api.nvim_get_autocmds, { group = group }), "LSP completion not enabled")
             end)
             if not ok then
               io.stderr:write(tostring(err) .. "\n")
@@ -202,9 +259,11 @@ in
         in
         pkgs.runCommand "check-neovim" { } ''
           export HOME=$TMPDIR
-          ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err
-          cat err
-          # an error in init.lua doesn't change nvim's exit code, only stderr
+          if ! ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err; then
+            cat err
+            exit 1
+          fi
+          # an error outside the test's pcall reaches stderr, not the exit code
           [ ! -s err ]
           touch $out
         '';
