@@ -92,15 +92,16 @@ let
       # and, for a user other than root, gives sudo without a password. With
       # ssh_setup's options the login stays open for the run that follows.
       pick_dest() {
-        local h=$1 user=$2 t out check
+        local h=$1 user=$2 t check
         shift 2
         for t in "$@"; do
           dest=$(to_dest "$user" "$t")
           check=true
           [ "''${dest%@*}" = root ] || check="sudo -n true"
+          # stderr stays the terminal: ssh prints the FIDO2 touch prompt only to a tty
           # shellcheck disable=SC2029
-          out=$(ssh -o ConnectTimeout=5 "''${sshopts[@]}" "$dest" "$check" 2>&1 </dev/null) && return 0
-          info "$h: skipping $dest: ''${out##*$'\n'}"
+          ssh -o ConnectTimeout=5 "''${sshopts[@]}" "$dest" "$check" </dev/null && return 0
+          info "$h: skipping $dest"
         done
         die "$h: no target fits (tried: $*)"
       }
