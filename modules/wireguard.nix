@@ -625,6 +625,12 @@ in
             }
           ) ifaces;
 
+          # networkd applies the .netdev's MTU only when it creates the link; the
+          # .network's on every reload, so a switch changes a running tunnel too.
+          systemd.network.networks = mapAttrs' (
+            _: i: nameValuePair "40-${i.interface}" { linkConfig.MTUBytes = i.mtu; }
+          ) (lib.filterAttrs (_: i: i.mtu != null) ifaces);
+
           networking.firewall.allowedUDPPorts = ports;
 
           # With `filterForward` the hub would drop what it relays between
