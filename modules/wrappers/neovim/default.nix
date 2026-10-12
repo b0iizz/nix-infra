@@ -236,9 +236,6 @@ in
               vim.api.nvim_feedkeys(vim.keycode("<leader>p"), "x", false)
               assert(vim.g.keyprobe and vim.g.keyprobe_rhs, "key-triggered plugin or its rhs not run")
               assert(vim.g.telescope_after, "eager plugin's config, with its dependency, didn't run")
-              -- startup errors (lz.n reports failed hooks) go here, not to stderr
-              local messages = vim.api.nvim_exec2("messages", { output = true }).output
-              assert(not messages:find("Error") and not messages:find("Failed"), messages)
               local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
               assert(normal.fg == 0x123456, "Normal fg is not base05")
               assert(normal.bg == nil, "Normal has a background")
@@ -259,11 +256,13 @@ in
         in
         pkgs.runCommand "check-neovim" { } ''
           export HOME=$TMPDIR
-          if ! ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err; then
-            cat err
-            exit 1
-          fi
-          # an error outside the test's pcall reaches stderr, not the exit code
+          ${lib.getExe nvim} --headless -c "luafile ${test}" 2> err || touch failed
+          cat err
+          [ ! -e failed ]
+          # A startup error (a failed `config`) changes neither the exit code
+          # nor :messages, and reaches stderr only if the event loop ran (the
+          # nixd wait). Every `config` in the test therefore sets a flag the
+          # test asserts.
           [ ! -s err ]
           touch $out
         '';
