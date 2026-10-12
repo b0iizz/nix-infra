@@ -40,7 +40,7 @@ Re-check before relying on it:
 ```sh
 nix flake check --no-build      # evaluates everything, 1-2 min: after every change
 nix build .#checks.x86_64-linux.lib   # or host-keys, desktop-roles, treefmt, check-flake-file,
-                                      # deploy-targets, niri-config, sway-config, neovim, default-shell,
+                                      # deploy-targets, niri-config, sway-config, neovim, neovim-keyboard, default-shell,
                                       # impermanence-rollback (a VM, as is a full flake check)
 nix build .#vm-test-prometheus  # installs the host in QEMU with the real provision CLI; minutes, needs /dev/kvm
 nix fmt                         # treefmt: nixfmt, prettier (also *.md), shfmt, taplo, qmlformat
