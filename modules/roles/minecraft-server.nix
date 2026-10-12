@@ -55,6 +55,24 @@ withInputs
           imports = [
             inputs.nix-minecraft.nixosModules.minecraft-servers
             self.modules.nixos.persist
+            # Ctrl-d at the start of a console line ends the server's input:
+            # its console reader quits for good without a log line, and the
+            # unit's ExecStop, which types `stop` there, hangs until it is
+            # killed. Each server has its own tmux server, so catch the key there.
+            {
+              options.services.minecraft-servers.servers = lib.mkOption {
+                type = lib.types.attrsOf (
+                  lib.types.submodule (
+                    { name, config, ... }:
+                    {
+                      config.extraStartPost = lib.mkIf config.managementSystem.tmux.enable ''
+                        ${lib.getExe pkgs.tmux} -S ${config.managementSystem.tmux.socketPath name} bind-key -n C-d display-message "Ctrl-d would end the console input; leave with Ctrl-b d"
+                      '';
+                    }
+                  )
+                );
+              };
+            }
           ];
 
           # for the console: the servers run in the module's tmux, the same
