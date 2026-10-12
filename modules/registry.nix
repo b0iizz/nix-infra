@@ -125,7 +125,7 @@ let
             description = ''
               Hostnames or addresses reachable over SSH from the operator,
               in order of preference: `deploy` and `host-keys` take the first
-              whose sshd answers with the host's key.
+              that takes a login with the host's key.
 
               `[ ]` means this host is only ever deployed from itself:
               In that case `deploy` runs `nixos-rebuild` locally with no

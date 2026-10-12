@@ -65,13 +65,14 @@ let
       # file's trailing comment must go, ssh would read it as a marker.
       # All ssh calls to a host share one connection, so a FIDO2 key is touched
       # once per run (nixos-rebuild puts its own ControlPath after NIX_SSHOPTS,
-      # the first one wins); cleanup closes it.
+      # the first one wins); cleanup closes it. It outlives a long build between
+      # pick_dest and nixos-rebuild; 30m bounds it only if the tool is killed.
       sshopts=()
       ssh_setup() {
         local h=$1 pubfile=''${2:-} kh type key
         mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
         mk_tmp
-        sshopts+=(-o ControlMaster=auto -o "ControlPath=$tmp/%C" -o ControlPersist=60)
+        sshopts+=(-o ControlMaster=auto -o "ControlPath=$tmp/%C" -o ControlPersist=30m)
         if [ -n "$pubfile" ] && [ -f "$pubfile" ]; then
           kh=$tmp/$h.known_hosts
           read -r type key _ <"$pubfile"
@@ -87,19 +88,18 @@ let
       }
 
       # pick_dest <host> <user> <target>...: sets $dest to the first user@target
-      # whose sshd answers with the key $sshopts expect (set them first). The
-      # probe stops before authentication, so it costs no FIDO2 touch.
-      # ponytail: reads OpenSSH's "Permission denied" wording; a probe that
-      # logs in is the upgrade if that ever changes.
+      # that serves the key $sshopts expect (set them first), lets us log in
+      # and, for a user other than root, gives sudo without a password. With
+      # ssh_setup's options the login stays open for the run that follows.
       pick_dest() {
-        local h=$1 user=$2 t out
+        local h=$1 user=$2 t out check
         shift 2
         for t in "$@"; do
           dest=$(to_dest "$user" "$t")
-          # ssh keeps the first value of an option, so these beat $sshopts.
-          out=$(ssh -o ControlPath=none -o PreferredAuthentications=none -o ConnectTimeout=5 \
-            -o LogLevel=ERROR "''${sshopts[@]}" "$dest" true 2>&1 </dev/null || true)
-          [[ $out != *"Permission denied"* ]] || return 0
+          check=true
+          [ "''${dest%@*}" = root ] || check="sudo -n true"
+          # shellcheck disable=SC2029
+          out=$(ssh -o ConnectTimeout=5 "''${sshopts[@]}" "$dest" "$check" 2>&1 </dev/null) && return 0
           info "$h: skipping $dest: ''${out##*$'\n'}"
         done
         die "$h: no target fits (tried: $*)"

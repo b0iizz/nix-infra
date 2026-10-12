@@ -134,7 +134,7 @@ in
 
           Without --local/--target, deploy and verify run locally if <host>
           is this machine's hostname, otherwise over ssh to the first of the
-          registry's deploy.targetHosts that answers with the host key.
+          registry's deploy.targetHosts that takes a login.
 
           deploy only talks to the machine holding the last committed key
           (git HEAD), so the private key can't go to an impostor. Without a
@@ -341,6 +341,9 @@ in
               got=$(awk '{ print $2 }' "$key_path.pub")
             else
               mapfile -t sshopts < <(jq -r --arg h "$h" '.[$h].sshOpts[]' <<<"$data")
+              mk_tmp
+              # one login for pick_dest and the read, as in ssh_setup
+              sshopts+=(-o ControlMaster=auto -o "ControlPath=$tmp/%C" -o ControlPersist=30m)
               pick_dest "$h" "$(field "$h" user)" "''${targets[@]}"
               # shellcheck disable=SC2029
               got=$(ssh "''${sshopts[@]}" "$dest" cat "$key_path.pub" | awk '{ print $2 }')

@@ -113,9 +113,10 @@ in
             -- args               passed on to nixos-rebuild (--show-trace ...)
 
           A host without deploy.targetHosts, or named like this machine, is
-          deployed locally. Otherwise the first target whose sshd answers
-          with the host's key is used; with --target only that one. A target user
-          other than root uses sudo.
+          deployed locally. Otherwise the first target that serves the
+          host's key and takes a login (and sudo without a password, for a
+          user other than root) is used; with --target only that one. A
+          target user other than root uses sudo.
 
           Host keys: if the host has a committed host.pub, ssh only accepts
           exactly that key (known_hosts is generated from it). Without one it
@@ -264,10 +265,11 @@ in
           # broken-into target could plant paths that later deploys reuse.
           plan_one() {
             local h=$1 new cur on=()
-            resolve_target "$h"
             info "$h: building"
             new=$(nix build --no-link --print-out-paths \
               "$root#nixosConfigurations.$h.config.system.build.toplevel" "''${rest[@]}")
+            # after the build: a failed build costs no login
+            resolve_target "$h"
             [ -z "$dest" ] || on=(ssh "''${sshopts[@]}" "$dest")
             cur=$("''${on[@]}" readlink -f /run/current-system) ||
               die "$h: cannot read the running system"
@@ -362,30 +364,31 @@ in
       make-shells.default = cli.shellFor deploy;
 
       # Target picking: `deploy plan` against stub nix and ssh, where only
-      # `good` answers with the host's key.
+      # `good` takes a login.
       checks.deploy-targets =
         let
           stubbed = deploy.withRuntimeInputs [
             (pkgs.writeShellScriptBin "nix" ''
               case $1 in
-                eval) echo '{"h":{"pub":"/h.pub","targets":["down","wrongkey","good","later"],"user":"root","sshOpts":[],"buildOnTarget":false,"groups":[]}}' ;;
+                eval) echo '{"h":{"pub":"/h.pub","targets":["down","wrongkey","noauth","good","later"],"user":"root","sshOpts":[],"buildOnTarget":false,"groups":[]}}' ;;
                 build) echo /fake ;;
               esac
             '')
             (pkgs.writeShellScriptBin "ssh" ''
-              case " $* " in
-                *PreferredAuthentications=none*)
-                  dest=''${*: -2:1}
-                  echo "$dest" >>"$PROBES"
-                  case $dest in
-                    root@good) echo "$dest: Permission denied (publickey)." >&2 ;;
-                    root@wrongkey) echo "Host key verification failed." >&2 ;;
-                    *) echo "ssh: connect to host ''${dest#*@} port 22: Connection timed out" >&2 ;;
-                  esac
-                  exit 255
-                  ;;
-                *) echo /fake ;; # readlink -f /run/current-system: up to date
+              dest=''${*: -2:1}
+              case ''${*: -1} in
+                true) ;;
+                "sudo -n true") echo "$dest sudo" >>"$PROBES"; echo "sudo: a password is required" >&2; exit 1 ;;
+                *) echo /fake; exit ;; # readlink -f /run/current-system: up to date
               esac
+              echo "$dest" >>"$PROBES"
+              case $dest in
+                *@good) exit 0 ;;
+                *@wrongkey) echo "Host key verification failed." >&2 ;;
+                *@noauth) echo "$dest: Permission denied (publickey)." >&2 ;;
+                *) echo "ssh: connect to host ''${dest#*@} port 22: Connection timed out" >&2 ;;
+              esac
+              exit 255
             '')
           ];
         in
@@ -393,12 +396,12 @@ in
           export FLAKE_ROOT=$PWD XDG_RUNTIME_DIR=$TMPDIR PROBES=$PWD/probes
           echo "ssh-ed25519 AAAA" >h.pub
           probes() { rm -f "$PROBES"; "$@"; tr '\n' ' ' <"$PROBES"; }
+          fails() { rm -f "$PROBES"; if "$@"; then exit 1; fi; cat "$PROBES"; }
 
-          [ "$(probes ${stubbed}/bin/deploy plan h)" = "root@down root@wrongkey root@good " ]
+          [ "$(probes ${stubbed}/bin/deploy plan h)" = "root@down root@wrongkey root@noauth root@good " ]
           [ "$(probes ${stubbed}/bin/deploy plan h --target good)" = "root@good " ]
-          rm "$PROBES"
-          if ${stubbed}/bin/deploy plan h --target later; then exit 1; fi
-          [ "$(cat "$PROBES")" = root@later ]
+          [ "$(fails ${stubbed}/bin/deploy plan h --target later)" = root@later ]
+          [ "$(fails ${stubbed}/bin/deploy plan h --target joni@good)" = "joni@good sudo" ]
           touch $out
         '';
     };
